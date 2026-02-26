@@ -825,7 +825,7 @@ function SpeciesPage({ sp, hue, onBack }) {
           if (hasCrop && !isCropMode) {
             const sx = 100 / (100 - crop.l - crop.r);
             const sy = 100 / (100 - crop.t - crop.b);
-            const s = Math.max(sx, sy);
+            const s = Math.min(sx, sy);
             const cx = (crop.l + 100 - crop.r) / 2;
             const cy = (crop.t + 100 - crop.b) / 2;
             const tx = 50 / s - cx;
@@ -833,6 +833,7 @@ function SpeciesPage({ sp, hue, onBack }) {
             cropTransform = {
               transformOrigin: "0 0",
               transform: `scale(${s}) translate(${tx}%, ${ty}%)`,
+              clipPath: `inset(${crop.t}% ${crop.r}% ${crop.b}% ${crop.l}%)`,
             };
           }
           return (
