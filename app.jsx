@@ -753,12 +753,6 @@ function SpeciesPage({ sp, hue, onBack }) {
           const crop = getCrop(p.id);
           const isCropMode = editing && cropMode;
           const hasCrop = crop.t > 0 || crop.r > 0 || crop.b > 0 || crop.l > 0;
-          // Crop display: clip + scale so cropped region fills the box
-          const cropScaleX = hasCrop ? 100 / (100 - crop.l - crop.r) : 1;
-          const cropScaleY = hasCrop ? 100 / (100 - crop.t - crop.b) : 1;
-          const cropScale = Math.max(cropScaleX, cropScaleY);
-          const cropOX = hasCrop ? (crop.l + (100 - crop.l - crop.r) / 2) : 50;
-          const cropOY = hasCrop ? (crop.t + (100 - crop.t - crop.b) / 2) : 50;
           return (
             <div key={p.id} data-photo-box
               onMouseDown={e => onMouseDown(e, i)}
@@ -776,9 +770,7 @@ function SpeciesPage({ sp, hue, onBack }) {
                 width: "100%", height: "100%",
                 objectFit: "cover",
                 ...(hasCrop && !isCropMode ? {
-                  clipPath: `inset(${crop.t}% ${crop.r}% ${crop.b}% ${crop.l}%)`,
-                  transform: `scale(${cropScale})`,
-                  transformOrigin: `${cropOX}% ${cropOY}%`,
+                  objectViewBox: `inset(${crop.t}% ${crop.r}% ${crop.b}% ${crop.l}%)`,
                 } : {}),
                 pointerEvents: "none",
               }} />
