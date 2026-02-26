@@ -800,35 +800,6 @@ function App() {
     URL.revokeObjectURL(url);
   };
 
-  // Import: load a settings.js file and apply to localStorage
-  const importSettings = () => {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = ".js";
-    input.onchange = (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        try {
-          // Extract JSON from the var SAVED_SETTINGS = {...}; line
-          const text = ev.target.result;
-          const match = text.match(/var SAVED_SETTINGS\s*=\s*(\{[\s\S]*\})\s*;/);
-          if (match) {
-            const settings = JSON.parse(match[1]);
-            for (const [key, val] of Object.entries(settings)) {
-              localStorage.setItem(key, typeof val === "string" ? val : JSON.stringify(val));
-            }
-            window.location.reload();
-          }
-        } catch (err) {
-          console.error("Failed to import settings:", err);
-        }
-      };
-      reader.readAsText(file);
-    };
-    input.click();
-  };
 
   // Levels: 0=orders, 1=families, 2=species (with genus groups)
   const isSpeciesLevel = curFam !== null;
@@ -908,12 +879,6 @@ function App() {
               background: "#e8e2d8", color: "#5a5040", border: "1.5px solid #b8b0a4",
               fontWeight: 600,
             }}>⬇ Export Settings</button>
-            <button onClick={importSettings} title="Load a settings.js file" style={{
-              fontFamily: "'JetBrains Mono',monospace", fontSize: 11,
-              padding: "5px 14px", borderRadius: 12, cursor: "pointer",
-              background: "#e8e2d8", color: "#5a5040", border: "1.5px solid #b8b0a4",
-              fontWeight: 600,
-            }}>⬆ Import</button>
           </div>
         </div>
       </div>
