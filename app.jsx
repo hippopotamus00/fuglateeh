@@ -1,12 +1,14 @@
 const { useState, useMemo, useCallback, useEffect } = React;
 
-// On load, import saved settings from settings.js into localStorage.
-// settings.js is the source of truth — it overwrites localStorage on every page load.
-// Edits during a session are saved to localStorage. Export to persist them.
+// On load, import saved settings from settings.js as defaults.
+// Only sets keys that don't already exist in localStorage,
+// so user changes persist across page reloads.
 (() => {
   if (typeof SAVED_SETTINGS === "object" && SAVED_SETTINGS !== null) {
     for (const [key, val] of Object.entries(SAVED_SETTINGS)) {
-      localStorage.setItem(key, typeof val === "string" ? val : JSON.stringify(val));
+      if (localStorage.getItem(key) === null) {
+        localStorage.setItem(key, typeof val === "string" ? val : JSON.stringify(val));
+      }
     }
   }
 })();
