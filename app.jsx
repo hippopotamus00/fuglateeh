@@ -336,6 +336,11 @@ function normalizeConfig(config, photos) {
     }
   }
   if (!result.crops) result.crops = {};
+  // Strip no-op zero crops
+  for (const key of Object.keys(result.crops)) {
+    const c = result.crops[key];
+    if (c && !c.t && !c.r && !c.b && !c.l) delete result.crops[key];
+  }
 
   // Detect new photos → append to order and auto-hide
   const knownIds = new Set(result.order);
@@ -587,8 +592,8 @@ function SpeciesPage({ sp, hue, onBack }) {
     <div onMouseDown={e => onCropHandleDown(e, idx, edge)}
       style={{
         position: "absolute", ...posStyle,
-        width: edge.length === 1 && (edge === "t" || edge === "b") ? 32 : 12,
-        height: edge.length === 1 && (edge === "l" || edge === "r") ? 32 : 12,
+        width: edge.length === 1 && (edge === "t" || edge === "b") ? 40 : (edge.length === 2 ? 16 : 14),
+        height: edge.length === 1 && (edge === "l" || edge === "r") ? 40 : (edge.length === 2 ? 16 : 14),
         cursor, background: "#fff", borderRadius: 3,
         opacity: 0.9, zIndex: 4, border: `1.5px solid hsl(${hue}, 50%, 60%)`,
         boxShadow: "0 1px 4px rgba(0,0,0,0.3)",
@@ -792,27 +797,48 @@ function SpeciesPage({ sp, hue, onBack }) {
           const crop = getCrop(p.id);
           const isCropMode = editing && cropMode;
           const hasCrop = crop.t > 0 || crop.r > 0 || crop.b > 0 || crop.l > 0;
+          // Compute crop transform: zoom into the crop region of the cover view
+          let cropTransform = {};
+          if (hasCrop && !isCropMode) {
+            const sx = 100 / (100 - crop.l - crop.r);
+            const sy = 100 / (100 - crop.t - crop.b);
+            const s = Math.max(sx, sy);
+            const cx = (crop.l + 100 - crop.r) / 2;
+            const cy = (crop.t + 100 - crop.b) / 2;
+            const tx = 50 / s - cx;
+            const ty = 50 / s - cy;
+            cropTransform = {
+              transformOrigin: "0 0",
+              transform: `scale(${s}) translate(${tx}%, ${ty}%)`,
+            };
+          }
           return (
             <div key={p.id} data-photo-box
               onMouseDown={e => onMouseDown(e, i)}
-              onDoubleClick={() => { if (editing && cropMode) updateCrop(p.id, { t: 0, r: 0, b: 0, l: 0 }); }}
+              onDoubleClick={() => {
+                if (editing && cropMode) {
+                  const cur = { ...configRef.current };
+                  const newCrops = { ...(cur.crops || {}) };
+                  delete newCrops[p.id];
+                  saveConfig({ ...cur, crops: newCrops });
+                }
+              }}
               style={{
                 position: "absolute",
                 left: `${pos.x}%`, top: `${pos.y}%`,
                 width: `${pos.w}%`, height: `${pos.h}%`,
-                overflow: "hidden",
+                overflow: isCropMode ? "visible" : "hidden",
                 cursor: editing ? (cropMode ? "default" : "move") : "default",
                 outline: editing ? `1px dashed ${isCropMode ? `hsl(${hue}, 50%, 60%)` : `${mood.text}33`}` : "none",
                 zIndex: (dragging?.idx === i || cropping?.idx === p.id) ? 10 : 1,
               }}>
-              <img src={p.full} alt={sp.is} style={{
-                width: "100%", height: "100%",
-                objectFit: hasCrop && !isCropMode ? "contain" : "cover",
-                ...(hasCrop && !isCropMode ? {
-                  objectViewBox: `inset(${crop.t}% ${crop.r}% ${crop.b}% ${crop.l}%)`,
-                } : {}),
-                pointerEvents: "none",
-              }} />
+              <img src={p.full} alt={sp.is}
+                style={{
+                  width: "100%", height: "100%",
+                  objectFit: "cover",
+                  ...cropTransform,
+                  pointerEvents: "none",
+                }} />
               {/* Crop mode: dim overlay outside crop region + handles */}
               {isCropMode && <>
                 {/* Dimmed regions outside crop */}
@@ -838,7 +864,7 @@ function SpeciesPage({ sp, hue, onBack }) {
                   background: "rgba(0,0,0,0.5)", color: "#fff",
                   fontFamily: "'JetBrains Mono',monospace", fontSize: 8,
                   padding: "1px 8px", borderRadius: 8, whiteSpace: "nowrap", pointerEvents: "none",
-                }}>{hasCrop ? "double-click to reset" : "drag edges to crop"}</div>
+                }}>{hasCrop ? "double-click to reset to original" : "drag edges to crop"}</div>
               </>}
               {/* Resize handles in edit mode (only in move mode) */}
               {editing && !cropMode && <>
