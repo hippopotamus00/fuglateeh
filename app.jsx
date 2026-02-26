@@ -435,6 +435,11 @@ function SpeciesPage({ sp, hue, onBack }) {
       if (edge.includes("r")) patch.r = Math.max(0, Math.min(maxInset, orig.r - dx));
       if (edge.includes("t")) patch.t = Math.max(0, Math.min(maxInset, orig.t + dy));
       if (edge.includes("b")) patch.b = Math.max(0, Math.min(maxInset, orig.b - dy));
+      // Snap to 0 when close to the edge
+      if (patch.t < 2) patch.t = 0;
+      if (patch.r < 2) patch.r = 0;
+      if (patch.b < 2) patch.b = 0;
+      if (patch.l < 2) patch.l = 0;
       // Prevent total insets from exceeding 80% on either axis
       if (patch.l + patch.r > 80) { patch.l = orig.l; patch.r = orig.r; }
       if (patch.t + patch.b > 80) { patch.t = orig.t; patch.b = orig.b; }
@@ -691,6 +696,7 @@ function SpeciesPage({ sp, hue, onBack }) {
           return (
             <div key={i} data-photo-box
               onMouseDown={e => onMouseDown(e, i)}
+              onDoubleClick={() => { if (editing && cropMode) updateCrop(i, { t: 0, r: 0, b: 0, l: 0 }); }}
               style={{
                 position: "absolute",
                 left: `${pos.x}%`, top: `${pos.y}%`,
@@ -730,14 +736,12 @@ function SpeciesPage({ sp, hue, onBack }) {
                 {cropHandle(i, "l", "w-resize", { top: "50%", left: `${crop.l}%`, transform: "translate(-50%,-50%)" })}
                 {cropHandle(i, "r", "e-resize", { top: "50%", right: `${crop.r}%`, transform: "translate(50%,-50%)" })}
                 {/* Hint */}
-                {!hasCrop && (
-                  <div style={{
-                    position: "absolute", bottom: 4, left: "50%", transform: "translateX(-50%)",
-                    background: "rgba(0,0,0,0.5)", color: "#fff",
-                    fontFamily: "'JetBrains Mono',monospace", fontSize: 8,
-                    padding: "1px 8px", borderRadius: 8, whiteSpace: "nowrap", pointerEvents: "none",
-                  }}>drag edges to crop</div>
-                )}
+                <div style={{
+                  position: "absolute", bottom: 4, left: "50%", transform: "translateX(-50%)",
+                  background: "rgba(0,0,0,0.5)", color: "#fff",
+                  fontFamily: "'JetBrains Mono',monospace", fontSize: 8,
+                  padding: "1px 8px", borderRadius: 8, whiteSpace: "nowrap", pointerEvents: "none",
+                }}>{hasCrop ? "double-click to reset" : "drag edges to crop"}</div>
               </>}
               {/* Resize handles in edit mode (only in move mode) */}
               {editing && !cropMode && <>
