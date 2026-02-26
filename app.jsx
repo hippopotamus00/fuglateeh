@@ -903,14 +903,16 @@ function App() {
             fontSize: 10.5, color: "#b0a89e" }}>{total} species · ✦ = visitor · click to explore</span>
           <div style={{ display: "flex", gap: 6 }}>
             <button onClick={exportSettings} title="Download settings.js — drop into project folder and push to GitHub" style={{
-              fontFamily: "'JetBrains Mono',monospace", fontSize: 9,
-              padding: "3px 10px", borderRadius: 10, cursor: "pointer",
-              background: "#f5f0e8", color: "#8a8070", border: "1px solid #d0cdc8",
+              fontFamily: "'JetBrains Mono',monospace", fontSize: 11,
+              padding: "5px 14px", borderRadius: 12, cursor: "pointer",
+              background: "#e8e2d8", color: "#5a5040", border: "1.5px solid #b8b0a4",
+              fontWeight: 600,
             }}>⬇ Export Settings</button>
             <button onClick={importSettings} title="Load a settings.js file" style={{
-              fontFamily: "'JetBrains Mono',monospace", fontSize: 9,
-              padding: "3px 10px", borderRadius: 10, cursor: "pointer",
-              background: "#f5f0e8", color: "#8a8070", border: "1px solid #d0cdc8",
+              fontFamily: "'JetBrains Mono',monospace", fontSize: 11,
+              padding: "5px 14px", borderRadius: 12, cursor: "pointer",
+              background: "#e8e2d8", color: "#5a5040", border: "1.5px solid #b8b0a4",
+              fontWeight: 600,
             }}>⬆ Import</button>
           </div>
         </div>
