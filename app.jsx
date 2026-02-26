@@ -438,15 +438,35 @@ function SpeciesPage({ sp, hue, onBack }) {
   const toggleHidden = (photoId) => {
     const cur = configRef.current;
     const curHidden = new Set(cur?.hidden || []);
-    if (curHidden.has(photoId)) {
-      curHidden.delete(photoId);
-    } else {
+    const curOrder = cur?.order || photos.map(p => p.id);
+    const curPositions = cur?.positions || autoLayout(visibleCount);
+    const curCrops = cur?.crops || {};
+    const oldVisible = curOrder.filter(id => !curHidden.has(id));
+
+    const isHiding = !curHidden.has(photoId);
+    if (isHiding) {
       curHidden.add(photoId);
+    } else {
+      curHidden.delete(photoId);
     }
     const newHidden = [...curHidden];
-    const curOrder = cur?.order || photos.map(p => p.id);
-    const newVisibleCount = curOrder.filter(id => !curHidden.has(id)).length;
-    saveConfig({ ...cur, hidden: newHidden, positions: autoLayout(newVisibleCount), crops: {} });
+    const newVisible = curOrder.filter(id => !curHidden.has(id));
+
+    let newPositions, newCrops;
+    if (isHiding) {
+      // Remove the position for the hidden photo, keep others
+      const removeIdx = oldVisible.indexOf(photoId);
+      newPositions = curPositions.filter((_, i) => i !== removeIdx);
+      newCrops = curCrops; // crops are keyed by photoId, so no change needed
+    } else {
+      // Add a default position for the newly shown photo on top
+      const insertIdx = newVisible.indexOf(photoId);
+      newPositions = [...curPositions];
+      newPositions.splice(insertIdx, 0, { x: 5, y: 5, w: 40, h: 40 });
+      newCrops = curCrops;
+    }
+
+    saveConfig({ ...cur, hidden: newHidden, positions: newPositions, crops: newCrops });
   };
 
   const setPoster = (photoId) => {
@@ -687,7 +707,24 @@ function SpeciesPage({ sp, hue, onBack }) {
               </div>
               {hiddenSet.size > 0 && (
                 <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 8, color: mood.text, opacity: 0.4, marginTop: 3 }}>
-                  {hiddenSet.size} hidden · <span onClick={() => saveConfig({ ...configRef.current, hidden: [], positions: autoLayout(n), crops: {} })} style={{ cursor: "pointer", textDecoration: "underline" }}>show all</span>
+                  {hiddenSet.size} hidden · <span onClick={() => {
+                    const cur = configRef.current;
+                    const curOrder = cur?.order || photos.map(p => p.id);
+                    const curPositions = cur?.positions || autoLayout(visibleCount);
+                    const oldVisible = curOrder.filter(id => !hiddenSet.has(id));
+                    // Build new positions: keep existing, insert defaults for newly shown
+                    const newPositions = [];
+                    let oldIdx = 0;
+                    for (const id of curOrder) {
+                      if (oldVisible[oldIdx] === id) {
+                        newPositions.push(curPositions[oldIdx] || { x: 5, y: 5, w: 40, h: 40 });
+                        oldIdx++;
+                      } else if (hiddenSet.has(id)) {
+                        newPositions.push({ x: 5, y: 5, w: 40, h: 40 });
+                      }
+                    }
+                    saveConfig({ ...cur, hidden: [], positions: newPositions });
+                  }} style={{ cursor: "pointer", textDecoration: "underline" }}>show all</span>
                 </div>
               )}
             </div>
