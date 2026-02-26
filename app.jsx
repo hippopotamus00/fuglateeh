@@ -768,7 +768,7 @@ function SpeciesPage({ sp, hue, onBack }) {
               }}>
               <img src={p.full} alt={sp.is} style={{
                 width: "100%", height: "100%",
-                objectFit: "cover",
+                objectFit: hasCrop && !isCropMode ? "contain" : "cover",
                 ...(hasCrop && !isCropMode ? {
                   objectViewBox: `inset(${crop.t}% ${crop.r}% ${crop.b}% ${crop.l}%)`,
                 } : {}),
