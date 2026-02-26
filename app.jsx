@@ -387,7 +387,7 @@ function SpeciesPage({ sp, hue, onBack }) {
 
   const getCrop = (idx) => {
     const c = cropsRef.current[idx];
-    return { panX: c?.panX ?? 50, panY: c?.panY ?? 50, scale: c?.scale ?? 1 };
+    return { t: c?.t ?? 0, r: c?.r ?? 0, b: c?.b ?? 0, l: c?.l ?? 0 };
   };
 
   const updateCrop = (idx, patch) => {
@@ -400,11 +400,7 @@ function SpeciesPage({ sp, hue, onBack }) {
   const onMouseDown = (e, idx) => {
     if (!editing) return;
     e.preventDefault();
-    if (cropMode) {
-      // Start crop-panning
-      const crop = getCrop(idx);
-      setCropping({ idx, startX: e.clientX, startY: e.clientY, origPanX: crop.panX, origPanY: crop.panY });
-    } else {
+    if (!cropMode) {
       const rect = canvasRef.current.getBoundingClientRect();
       setDragging({ idx, startX: e.clientX, startY: e.clientY, origX: posRef.current[idx].x, origY: posRef.current[idx].y, rect });
     }
@@ -419,15 +415,30 @@ function SpeciesPage({ sp, hue, onBack }) {
     setResizing({ idx, startX: e.clientX, startY: e.clientY, origW: p.w, origH: p.h, origX: p.x, origY: p.y, corner, rect });
   };
 
+  const onCropHandleDown = (e, idx, edge) => {
+    if (!editing || !cropMode) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const el = e.target.closest("[data-photo-box]");
+    const boxRect = el ? el.getBoundingClientRect() : { width: 1, height: 1 };
+    setCropping({ idx, edge, startX: e.clientX, startY: e.clientY, orig: getCrop(idx), boxRect });
+  };
+
   const onMouseMove = useCallback((e) => {
     if (cropping) {
-      const { idx, startX, startY, origPanX, origPanY } = cropping;
-      // Move pan: dragging right moves objectPosition left (reveals right side)
-      const dx = (e.clientX - startX) * -0.25;
-      const dy = (e.clientY - startY) * -0.25;
-      const panX = Math.max(0, Math.min(100, origPanX + dx));
-      const panY = Math.max(0, Math.min(100, origPanY + dy));
-      updateCrop(idx, { panX, panY });
+      const { idx, edge, startX, startY, orig, boxRect } = cropping;
+      const dx = ((e.clientX - startX) / boxRect.width) * 100;
+      const dy = ((e.clientY - startY) / boxRect.height) * 100;
+      const patch = { ...orig };
+      const maxInset = 45;
+      if (edge.includes("l")) patch.l = Math.max(0, Math.min(maxInset, orig.l + dx));
+      if (edge.includes("r")) patch.r = Math.max(0, Math.min(maxInset, orig.r - dx));
+      if (edge.includes("t")) patch.t = Math.max(0, Math.min(maxInset, orig.t + dy));
+      if (edge.includes("b")) patch.b = Math.max(0, Math.min(maxInset, orig.b - dy));
+      // Prevent total insets from exceeding 80% on either axis
+      if (patch.l + patch.r > 80) { patch.l = orig.l; patch.r = orig.r; }
+      if (patch.t + patch.b > 80) { patch.t = orig.t; patch.b = orig.b; }
+      updateCrop(idx, patch);
     }
     if (dragging) {
       const { idx, startX, startY, origX, origY, rect } = dragging;
@@ -458,16 +469,6 @@ function SpeciesPage({ sp, hue, onBack }) {
     setCropping(null);
   }, []);
 
-  // Wheel handler for crop zoom
-  const onCropWheel = useCallback((e, idx) => {
-    if (!editing || !cropMode) return;
-    e.preventDefault();
-    const crop = getCrop(idx);
-    const delta = e.deltaY > 0 ? -0.1 : 0.1;
-    const scale = Math.max(1, Math.min(4, crop.scale + delta));
-    updateCrop(idx, { scale });
-  }, [editing, cropMode]);
-
   // Attach global mouse listeners during drag/resize/crop
   useEffect(() => {
     if (dragging || resizing || cropping) {
@@ -486,6 +487,18 @@ function SpeciesPage({ sp, hue, onBack }) {
         width: 12, height: 12, cursor,
         background: `hsl(${hue}, 30%, 55%)`, borderRadius: 2,
         opacity: 0.8, zIndex: 2,
+      }} />
+  );
+
+  const cropHandle = (idx, edge, cursor, posStyle) => (
+    <div onMouseDown={e => onCropHandleDown(e, idx, edge)}
+      style={{
+        position: "absolute", ...posStyle,
+        width: edge.length === 1 && (edge === "t" || edge === "b") ? 32 : 12,
+        height: edge.length === 1 && (edge === "l" || edge === "r") ? 32 : 12,
+        cursor, background: "#fff", borderRadius: 3,
+        opacity: 0.9, zIndex: 4, border: `1.5px solid hsl(${hue}, 50%, 60%)`,
+        boxShadow: "0 1px 4px rgba(0,0,0,0.3)",
       }} />
   );
 
@@ -668,45 +681,64 @@ function SpeciesPage({ sp, hue, onBack }) {
           const pos = positions[i] || { x: 0, y: 0, w: 30, h: 30 };
           const crop = getCrop(i);
           const isCropMode = editing && cropMode;
+          const hasCrop = crop.t > 0 || crop.r > 0 || crop.b > 0 || crop.l > 0;
+          // Crop display: clip + scale so cropped region fills the box
+          const cropScaleX = hasCrop ? 100 / (100 - crop.l - crop.r) : 1;
+          const cropScaleY = hasCrop ? 100 / (100 - crop.t - crop.b) : 1;
+          const cropScale = Math.max(cropScaleX, cropScaleY);
+          const cropOX = hasCrop ? (crop.l + (100 - crop.l - crop.r) / 2) : 50;
+          const cropOY = hasCrop ? (crop.t + (100 - crop.t - crop.b) / 2) : 50;
           return (
-            <div key={i}
+            <div key={i} data-photo-box
               onMouseDown={e => onMouseDown(e, i)}
-              onWheel={e => onCropWheel(e, i)}
               style={{
                 position: "absolute",
                 left: `${pos.x}%`, top: `${pos.y}%`,
                 width: `${pos.w}%`, height: `${pos.h}%`,
                 overflow: "hidden",
-                cursor: editing ? (cropMode ? "crosshair" : "move") : "default",
+                cursor: editing ? (cropMode ? "default" : "move") : "default",
                 outline: editing ? `1px dashed ${isCropMode ? `hsl(${hue}, 50%, 60%)` : `${mood.text}33`}` : "none",
                 zIndex: (dragging?.idx === i || cropping?.idx === i) ? 10 : 1,
               }}>
               <img src={p.full} alt={sp.is} style={{
                 width: "100%", height: "100%",
-                objectFit: crop.scale > 1 ? "cover" : "contain",
-                objectPosition: `${crop.panX}% ${crop.panY}%`,
-                transform: crop.scale > 1 ? `scale(${crop.scale})` : "none",
-                transformOrigin: `${crop.panX}% ${crop.panY}%`,
+                objectFit: "cover",
+                ...(hasCrop && !isCropMode ? {
+                  clipPath: `inset(${crop.t}% ${crop.r}% ${crop.b}% ${crop.l}%)`,
+                  transform: `scale(${cropScale})`,
+                  transformOrigin: `${cropOX}% ${cropOY}%`,
+                } : {}),
                 pointerEvents: "none",
               }} />
-              {/* Crop zoom indicator */}
-              {isCropMode && crop.scale > 1 && (
-                <div style={{
-                  position: "absolute", bottom: 4, right: 4,
-                  background: "rgba(0,0,0,0.6)", color: "#fff",
-                  fontFamily: "'JetBrains Mono',monospace", fontSize: 9,
-                  padding: "1px 6px", borderRadius: 8,
-                }}>{crop.scale.toFixed(1)}×</div>
-              )}
-              {/* Crop hint */}
-              {isCropMode && crop.scale === 1 && (
-                <div style={{
-                  position: "absolute", bottom: 4, left: "50%", transform: "translateX(-50%)",
-                  background: "rgba(0,0,0,0.5)", color: "#fff",
-                  fontFamily: "'JetBrains Mono',monospace", fontSize: 8,
-                  padding: "1px 8px", borderRadius: 8, whiteSpace: "nowrap",
-                }}>scroll to zoom</div>
-              )}
+              {/* Crop mode: dim overlay outside crop region + handles */}
+              {isCropMode && <>
+                {/* Dimmed regions outside crop */}
+                <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: `${crop.t}%`, background: "rgba(0,0,0,0.45)", pointerEvents: "none" }} />
+                <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: `${crop.b}%`, background: "rgba(0,0,0,0.45)", pointerEvents: "none" }} />
+                <div style={{ position: "absolute", top: `${crop.t}%`, bottom: `${crop.b}%`, left: 0, width: `${crop.l}%`, background: "rgba(0,0,0,0.45)", pointerEvents: "none" }} />
+                <div style={{ position: "absolute", top: `${crop.t}%`, bottom: `${crop.b}%`, right: 0, width: `${crop.r}%`, background: "rgba(0,0,0,0.45)", pointerEvents: "none" }} />
+                {/* Crop rectangle border */}
+                <div style={{ position: "absolute", top: `${crop.t}%`, left: `${crop.l}%`, right: `${crop.r}%`, bottom: `${crop.b}%`, border: "1.5px dashed rgba(255,255,255,0.7)", pointerEvents: "none", zIndex: 3 }} />
+                {/* Corner handles */}
+                {cropHandle(i, "tl", "nw-resize", { top: `${crop.t}%`, left: `${crop.l}%`, transform: "translate(-50%,-50%)" })}
+                {cropHandle(i, "tr", "ne-resize", { top: `${crop.t}%`, right: `${crop.r}%`, transform: "translate(50%,-50%)" })}
+                {cropHandle(i, "bl", "sw-resize", { bottom: `${crop.b}%`, left: `${crop.l}%`, transform: "translate(-50%,50%)" })}
+                {cropHandle(i, "br", "se-resize", { bottom: `${crop.b}%`, right: `${crop.r}%`, transform: "translate(50%,50%)" })}
+                {/* Edge handles */}
+                {cropHandle(i, "t", "n-resize", { top: `${crop.t}%`, left: "50%", transform: "translate(-50%,-50%)" })}
+                {cropHandle(i, "b", "s-resize", { bottom: `${crop.b}%`, left: "50%", transform: "translate(-50%,50%)" })}
+                {cropHandle(i, "l", "w-resize", { top: "50%", left: `${crop.l}%`, transform: "translate(-50%,-50%)" })}
+                {cropHandle(i, "r", "e-resize", { top: "50%", right: `${crop.r}%`, transform: "translate(50%,-50%)" })}
+                {/* Hint */}
+                {!hasCrop && (
+                  <div style={{
+                    position: "absolute", bottom: 4, left: "50%", transform: "translateX(-50%)",
+                    background: "rgba(0,0,0,0.5)", color: "#fff",
+                    fontFamily: "'JetBrains Mono',monospace", fontSize: 8,
+                    padding: "1px 8px", borderRadius: 8, whiteSpace: "nowrap", pointerEvents: "none",
+                  }}>drag edges to crop</div>
+                )}
+              </>}
               {/* Resize handles in edit mode (only in move mode) */}
               {editing && !cropMode && <>
                 {resizeHandle(i, "rb", "se-resize", { bottom: -2, right: -2 })}
