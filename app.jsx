@@ -219,6 +219,7 @@ const PHOTOS_FROM_MANIFEST = typeof PHOTO_MANIFEST !== 'undefined' ? PHOTO_MANIF
 const PHOTOS_BUILT = {};
 for (const [sci, files] of Object.entries(PHOTOS_FROM_MANIFEST)) {
   PHOTOS_BUILT[sci] = files.map(f => ({
+    id: f.file,
     thumb: f.file,
     full: f.file,
   }));
@@ -295,6 +296,65 @@ function autoLayout(n) {
   ];
 }
 
+/* ── Normalize config: migrate numeric indices → filename IDs ── */
+function normalizeConfig(config, photos) {
+  if (!config) return null;
+  const result = { ...config };
+  const isLegacy = (arr) => arr && arr.length > 0 && typeof arr[0] === "number";
+
+  // Migrate order: number[] → string[]
+  if (result.order && isLegacy(result.order)) {
+    result.order = result.order.map(i => photos[i]?.id).filter(Boolean);
+  }
+  if (!result.order) result.order = photos.map(p => p.id);
+
+  // Migrate hidden: number[] → string[]
+  if (result.hidden && isLegacy(result.hidden)) {
+    result.hidden = result.hidden.map(i => photos[i]?.id).filter(Boolean);
+  }
+  if (!result.hidden) result.hidden = [];
+
+  // Migrate poster: number → string
+  if (result.poster != null && typeof result.poster === "number") {
+    result.poster = photos[result.poster]?.id ?? null;
+  }
+
+  // Migrate crops: numeric keys → filename keys
+  if (result.crops && Object.keys(result.crops).length > 0) {
+    const firstKey = Object.keys(result.crops)[0];
+    if (/^\d+$/.test(firstKey)) {
+      const oldHiddenSet = new Set(result.hidden);
+      const oldVisible = result.order.filter(id => !oldHiddenSet.has(id));
+      const newCrops = {};
+      for (const [key, val] of Object.entries(result.crops)) {
+        const photoId = oldVisible[parseInt(key, 10)];
+        if (photoId) newCrops[photoId] = val;
+      }
+      result.crops = newCrops;
+    }
+  }
+  if (!result.crops) result.crops = {};
+
+  // Detect new photos → append to order and auto-hide
+  const knownIds = new Set(result.order);
+  const newPhotos = photos.filter(p => !knownIds.has(p.id));
+  if (newPhotos.length > 0) {
+    result.order = [...result.order, ...newPhotos.map(p => p.id)];
+    result.hidden = [...result.hidden, ...newPhotos.map(p => p.id)];
+  }
+
+  // Clean up deleted photos
+  const currentIds = new Set(photos.map(p => p.id));
+  result.order = result.order.filter(id => currentIds.has(id));
+  result.hidden = result.hidden.filter(id => currentIds.has(id));
+  if (result.poster && !currentIds.has(result.poster)) result.poster = null;
+  for (const key of Object.keys(result.crops)) {
+    if (!currentIds.has(key)) delete result.crops[key];
+  }
+
+  return result;
+}
+
 /* ── Species full page ──────────────────────────────────────── */
 function SpeciesPage({ sp, hue, onBack }) {
   const [editing, setEditing] = useState(false);
@@ -311,12 +371,16 @@ function SpeciesPage({ sp, hue, onBack }) {
   const n = photos.length;
   const storageKey = `sp:${sp.sci.replace(/ /g, "_")}`;
 
-  // Load config
+  // Load config (normalize migrates old numeric indices to filename IDs)
   useEffect(() => {
     (async () => {
       try {
         const raw = localStorage.getItem(storageKey);
-        if (raw) setConfig(JSON.parse(raw));
+        if (raw) {
+          const normalized = normalizeConfig(JSON.parse(raw), photos);
+          setConfig(normalized);
+          localStorage.setItem(storageKey, JSON.stringify(normalized));
+        }
       } catch (e) {}
       setLoaded(true);
     })();
@@ -333,14 +397,16 @@ function SpeciesPage({ sp, hue, onBack }) {
   }, [storageKey]);
 
   const mood = MOODS.find(m => m.key === (config?.mood || "light")) || MOODS[0];
-  const photoOrder = config?.order || photos.map((_, i) => i);
+  const photoOrder = config?.order || photos.map(p => p.id);
   const hiddenSet = new Set(config?.hidden || []);
-  const posterIdx = config?.poster ?? null; // original photo index used as poster in grid
-  const ordered = photoOrder.map(i => photos[i]).filter(Boolean);
-  const visible = ordered.filter((_, i) => !hiddenSet.has(photoOrder[i]));
+  const posterId = config?.poster ?? null;
+  const photoById = {};
+  photos.forEach((p, i) => { photoById[p.id] = i; });
+  const ordered = photoOrder.map(id => photos[photoById[id]]).filter(Boolean);
+  const visible = ordered.filter(p => !hiddenSet.has(p.id));
   const visibleCount = visible.length;
   const positions = config?.positions || autoLayout(visibleCount);
-  const crops = config?.crops || {}; // { idx: { panX: 50, panY: 50, scale: 1 } }
+  const crops = config?.crops || {};
   const posRef = React.useRef(positions);
   posRef.current = positions;
   const cropsRef = React.useRef(crops);
@@ -357,7 +423,7 @@ function SpeciesPage({ sp, hue, onBack }) {
   
   const swapPhotos = (a, b) => {
     const cur = configRef.current;
-    const curOrder = cur?.order || photos.map((_, i) => i);
+    const curOrder = cur?.order || photos.map(p => p.id);
     const newOrder = [...curOrder];
     [newOrder[a], newOrder[b]] = [newOrder[b], newOrder[a]];
     saveConfig({ ...cur, order: newOrder });
@@ -367,32 +433,32 @@ function SpeciesPage({ sp, hue, onBack }) {
     saveConfig({ ...configRef.current, positions: autoLayout(visibleCount) });
   };
 
-  const toggleHidden = (origIdx) => {
+  const toggleHidden = (photoId) => {
     const cur = configRef.current;
     const curHidden = new Set(cur?.hidden || []);
-    if (curHidden.has(origIdx)) {
-      curHidden.delete(origIdx);
+    if (curHidden.has(photoId)) {
+      curHidden.delete(photoId);
     } else {
-      curHidden.add(origIdx);
+      curHidden.add(photoId);
     }
     const newHidden = [...curHidden];
-    // Recalculate layout for new visible count
-    const newVisibleCount = n - newHidden.length;
+    const curOrder = cur?.order || photos.map(p => p.id);
+    const newVisibleCount = curOrder.filter(id => !curHidden.has(id)).length;
     saveConfig({ ...cur, hidden: newHidden, positions: autoLayout(newVisibleCount), crops: {} });
   };
 
-  const setPoster = (origIdx) => {
-    saveConfig({ ...configRef.current, poster: origIdx });
+  const setPoster = (photoId) => {
+    saveConfig({ ...configRef.current, poster: photoId });
   };
 
-  const getCrop = (idx) => {
-    const c = cropsRef.current[idx];
+  const getCrop = (photoId) => {
+    const c = cropsRef.current[photoId];
     return { t: c?.t ?? 0, r: c?.r ?? 0, b: c?.b ?? 0, l: c?.l ?? 0 };
   };
 
-  const updateCrop = (idx, patch) => {
+  const updateCrop = (photoId, patch) => {
     const cur = { ...cropsRef.current };
-    cur[idx] = { ...getCrop(idx), ...patch };
+    cur[photoId] = { ...getCrop(photoId), ...patch };
     saveConfig({ ...configRef.current, crops: cur });
   };
 
@@ -574,23 +640,23 @@ function SpeciesPage({ sp, hue, onBack }) {
               <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 8, color: mood.text, opacity: 0.4, marginBottom: 4, textTransform: "uppercase", letterSpacing: 1 }}>Photos (click to swap, ✕ hide, ★ poster)</div>
               <div style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
                 {ordered.map((p, i) => {
-                  const origIdx = photoOrder[i];
-                  const isHidden = hiddenSet.has(origIdx);
-                  const isPoster = posterIdx === origIdx;
+                  const photoId = p.id;
+                  const isHidden = hiddenSet.has(photoId);
+                  const isPoster = posterId === photoId;
                   return (
-                    <div key={i} style={{ position: "relative" }}>
-                      <button onClick={() => { if (!isHidden && i < n - 1) swapPhotos(i, i + 1); }}
+                    <div key={photoId} style={{ position: "relative" }}>
+                      <button onClick={() => { if (!isHidden && i < ordered.length - 1) swapPhotos(i, i + 1); }}
                         style={{
                           width: 36, height: 24, borderRadius: 3, overflow: "hidden",
                           border: `2px solid ${isHidden ? "#f44" : (isPoster ? "#f5c542" : `${mood.text}22`)}`,
-                          padding: 0, cursor: (!isHidden && i < n - 1) ? "pointer" : "default",
+                          padding: 0, cursor: (!isHidden && i < ordered.length - 1) ? "pointer" : "default",
                           opacity: isHidden ? 0.3 : 1,
                           filter: isHidden ? "grayscale(1)" : "none",
                         }}>
                         <img src={p.thumb} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                       </button>
                       {/* Hide/show button */}
-                      <button onClick={() => toggleHidden(origIdx)}
+                      <button onClick={() => toggleHidden(photoId)}
                         title={isHidden ? "Show photo" : "Hide photo"}
                         style={{
                           position: "absolute", top: -6, right: -6,
@@ -602,7 +668,7 @@ function SpeciesPage({ sp, hue, onBack }) {
                           lineHeight: 1, padding: 0,
                         }}>{isHidden ? "+" : "×"}</button>
                       {/* Poster button */}
-                      <button onClick={() => setPoster(origIdx)}
+                      <button onClick={() => setPoster(photoId)}
                         title={isPoster ? "Current poster" : "Set as poster"}
                         style={{
                           position: "absolute", bottom: -5, left: "50%", transform: "translateX(-50%)",
@@ -684,7 +750,7 @@ function SpeciesPage({ sp, hue, onBack }) {
         )}
         {visible.map((p, i) => {
           const pos = positions[i] || { x: 0, y: 0, w: 30, h: 30 };
-          const crop = getCrop(i);
+          const crop = getCrop(p.id);
           const isCropMode = editing && cropMode;
           const hasCrop = crop.t > 0 || crop.r > 0 || crop.b > 0 || crop.l > 0;
           // Crop display: clip + scale so cropped region fills the box
@@ -694,9 +760,9 @@ function SpeciesPage({ sp, hue, onBack }) {
           const cropOX = hasCrop ? (crop.l + (100 - crop.l - crop.r) / 2) : 50;
           const cropOY = hasCrop ? (crop.t + (100 - crop.t - crop.b) / 2) : 50;
           return (
-            <div key={i} data-photo-box
+            <div key={p.id} data-photo-box
               onMouseDown={e => onMouseDown(e, i)}
-              onDoubleClick={() => { if (editing && cropMode) updateCrop(i, { t: 0, r: 0, b: 0, l: 0 }); }}
+              onDoubleClick={() => { if (editing && cropMode) updateCrop(p.id, { t: 0, r: 0, b: 0, l: 0 }); }}
               style={{
                 position: "absolute",
                 left: `${pos.x}%`, top: `${pos.y}%`,
@@ -704,7 +770,7 @@ function SpeciesPage({ sp, hue, onBack }) {
                 overflow: "hidden",
                 cursor: editing ? (cropMode ? "default" : "move") : "default",
                 outline: editing ? `1px dashed ${isCropMode ? `hsl(${hue}, 50%, 60%)` : `${mood.text}33`}` : "none",
-                zIndex: (dragging?.idx === i || cropping?.idx === i) ? 10 : 1,
+                zIndex: (dragging?.idx === i || cropping?.idx === p.id) ? 10 : 1,
               }}>
               <img src={p.full} alt={sp.is} style={{
                 width: "100%", height: "100%",
@@ -726,15 +792,15 @@ function SpeciesPage({ sp, hue, onBack }) {
                 {/* Crop rectangle border */}
                 <div style={{ position: "absolute", top: `${crop.t}%`, left: `${crop.l}%`, right: `${crop.r}%`, bottom: `${crop.b}%`, border: "1.5px dashed rgba(255,255,255,0.7)", pointerEvents: "none", zIndex: 3 }} />
                 {/* Corner handles */}
-                {cropHandle(i, "tl", "nw-resize", { top: `${crop.t}%`, left: `${crop.l}%`, transform: "translate(-50%,-50%)" })}
-                {cropHandle(i, "tr", "ne-resize", { top: `${crop.t}%`, right: `${crop.r}%`, transform: "translate(50%,-50%)" })}
-                {cropHandle(i, "bl", "sw-resize", { bottom: `${crop.b}%`, left: `${crop.l}%`, transform: "translate(-50%,50%)" })}
-                {cropHandle(i, "br", "se-resize", { bottom: `${crop.b}%`, right: `${crop.r}%`, transform: "translate(50%,50%)" })}
+                {cropHandle(p.id, "tl", "nw-resize", { top: `${crop.t}%`, left: `${crop.l}%`, transform: "translate(-50%,-50%)" })}
+                {cropHandle(p.id, "tr", "ne-resize", { top: `${crop.t}%`, right: `${crop.r}%`, transform: "translate(50%,-50%)" })}
+                {cropHandle(p.id, "bl", "sw-resize", { bottom: `${crop.b}%`, left: `${crop.l}%`, transform: "translate(-50%,50%)" })}
+                {cropHandle(p.id, "br", "se-resize", { bottom: `${crop.b}%`, right: `${crop.r}%`, transform: "translate(50%,50%)" })}
                 {/* Edge handles */}
-                {cropHandle(i, "t", "n-resize", { top: `${crop.t}%`, left: "50%", transform: "translate(-50%,-50%)" })}
-                {cropHandle(i, "b", "s-resize", { bottom: `${crop.b}%`, left: "50%", transform: "translate(-50%,50%)" })}
-                {cropHandle(i, "l", "w-resize", { top: "50%", left: `${crop.l}%`, transform: "translate(-50%,-50%)" })}
-                {cropHandle(i, "r", "e-resize", { top: "50%", right: `${crop.r}%`, transform: "translate(50%,-50%)" })}
+                {cropHandle(p.id, "t", "n-resize", { top: `${crop.t}%`, left: "50%", transform: "translate(-50%,-50%)" })}
+                {cropHandle(p.id, "b", "s-resize", { bottom: `${crop.b}%`, left: "50%", transform: "translate(-50%,50%)" })}
+                {cropHandle(p.id, "l", "w-resize", { top: "50%", left: `${crop.l}%`, transform: "translate(-50%,-50%)" })}
+                {cropHandle(p.id, "r", "e-resize", { top: "50%", right: `${crop.r}%`, transform: "translate(50%,-50%)" })}
                 {/* Hint */}
                 <div style={{
                   position: "absolute", bottom: 4, left: "50%", transform: "translateX(-50%)",
@@ -1085,8 +1151,13 @@ function App() {
                         const raw = localStorage.getItem(`sp:${sp.sci.replace(/ /g, "_")}`);
                         if (raw) {
                           const cfg = JSON.parse(raw);
-                          if (cfg.poster != null && photos[cfg.poster]) {
-                            thumb = photos[cfg.poster].thumb;
+                          if (cfg.poster != null) {
+                            if (typeof cfg.poster === "string") {
+                              const posterPhoto = photos.find(p => p.id === cfg.poster);
+                              if (posterPhoto) thumb = posterPhoto.thumb;
+                            } else if (typeof cfg.poster === "number" && photos[cfg.poster]) {
+                              thumb = photos[cfg.poster].thumb;
+                            }
                           }
                         }
                       } catch(e) {}
