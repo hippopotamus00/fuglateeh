@@ -362,25 +362,6 @@ function normalizeConfig(config, photos) {
   return result;
 }
 
-/* ── Adjust crop values when box is resized so the same image region stays visible ── */
-function adjustCropForResize(crop, imgW, imgH, oldBoxW, oldBoxH, newBoxW, newBoxH) {
-  const s1 = Math.max(oldBoxW / imgW, oldBoxH / imgH);
-  const dW1 = imgW * s1, dH1 = imgH * s1;
-  const ox1 = (oldBoxW - dW1) / 2, oy1 = (oldBoxH - dH1) / 2;
-  const iL = (crop.l / 100 * oldBoxW - ox1) / dW1 * 100;
-  const iT = (crop.t / 100 * oldBoxH - oy1) / dH1 * 100;
-  const iR = 100 - ((100 - crop.r) / 100 * oldBoxW - ox1) / dW1 * 100;
-  const iB = 100 - ((100 - crop.b) / 100 * oldBoxH - oy1) / dH1 * 100;
-  const s2 = Math.max(newBoxW / imgW, newBoxH / imgH);
-  const dW2 = imgW * s2, dH2 = imgH * s2;
-  const ox2 = (newBoxW - dW2) / 2, oy2 = (newBoxH - dH2) / 2;
-  const nL = (iL / 100 * dW2 + ox2) / newBoxW * 100;
-  const nT = (iT / 100 * dH2 + oy2) / newBoxH * 100;
-  const nR = 100 - ((100 - iR) / 100 * dW2 + ox2) / newBoxW * 100;
-  const nB = 100 - ((100 - iB) / 100 * dH2 + oy2) / newBoxH * 100;
-  const cl = v => Math.max(0, Math.min(45, v));
-  return { l: cl(nL), t: cl(nT), r: cl(nR), b: cl(nB) };
-}
 
 /* ── Species full page ──────────────────────────────────────── */
 function SpeciesPage({ sp, hue, onBack }) {
@@ -581,19 +562,25 @@ function SpeciesPage({ sp, hue, onBack }) {
       if (corner.includes("l")) { nw = Math.max(10, origW - dx); nx = origX + (origW - nw); }
       if (corner.includes("b")) nh = Math.max(8, origH + dy);
       if (corner.includes("t")) { nh = Math.max(8, origH - dy); ny = origY + (origH - nh); }
-      cur[idx] = { ...cur[idx], x: Math.max(0, nx), y: Math.max(0, ny), w: Math.min(100, nw), h: Math.min(100, nh) };
-      // Adjust crop to maintain same visible image region
-      const dims = photoId ? naturalDimsRef.current[photoId] : null;
-      if (origCrop && dims) {
-        const oldBW = origW / 100 * rect.width, oldBH = origH / 100 * rect.height;
-        const newBW = cur[idx].w / 100 * rect.width, newBH = cur[idx].h / 100 * rect.height;
-        const adjusted = adjustCropForResize(origCrop, dims.w, dims.h, oldBW, oldBH, newBW, newBH);
-        const newCrops = { ...(configRef.current.crops || {}) };
-        newCrops[photoId] = adjusted;
-        saveConfig({ ...configRef.current, positions: cur, crops: newCrops });
-      } else {
-        saveConfig({ ...configRef.current, positions: cur });
+      // Lock aspect ratio for cropped images — same shape = same crop
+      if (origCrop) {
+        const ar = origW / origH;
+        if (corner.length === 2) {
+          if (Math.abs(nw - origW) / origW >= Math.abs(nh - origH) / origH) {
+            nh = nw / ar;
+            if (corner.includes("t")) ny = origY + origH - nh;
+          } else {
+            nw = nh * ar;
+            if (corner.includes("l")) nx = origX + origW - nw;
+          }
+        } else if (corner === "r" || corner === "l") {
+          nh = nw / ar;
+        } else {
+          nw = nh * ar;
+        }
       }
+      cur[idx] = { ...cur[idx], x: Math.max(0, nx), y: Math.max(0, ny), w: Math.min(100, nw), h: Math.min(100, nh) };
+      saveConfig({ ...configRef.current, positions: cur });
     }
   }, [cropping, dragging, resizing, saveConfig]);
 
