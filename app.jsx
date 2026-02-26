@@ -795,21 +795,7 @@ function SpeciesPage({ sp, hue, onBack }) {
           return (
             <div key={p.id} data-photo-box
               onMouseDown={e => onMouseDown(e, i)}
-              onDoubleClick={() => {
-                if (!editing || !cropMode) return;
-                // Reset to the original crop from settings.js, or {0,0,0,0} if none
-                let origCrop = { t: 0, r: 0, b: 0, l: 0 };
-                try {
-                  if (typeof SAVED_SETTINGS === "object" && SAVED_SETTINGS !== null) {
-                    const raw = SAVED_SETTINGS[storageKey];
-                    if (raw) {
-                      const savedConfig = normalizeConfig(JSON.parse(raw), photos);
-                      if (savedConfig?.crops?.[p.id]) origCrop = savedConfig.crops[p.id];
-                    }
-                  }
-                } catch (e) {}
-                updateCrop(p.id, origCrop);
-              }}
+              onDoubleClick={() => { if (editing && cropMode) updateCrop(p.id, { t: 0, r: 0, b: 0, l: 0 }); }}
               style={{
                 position: "absolute",
                 left: `${pos.x}%`, top: `${pos.y}%`,
