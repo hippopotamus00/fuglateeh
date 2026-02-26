@@ -909,7 +909,22 @@ function App() {
         display: "flex", flexDirection: "column",
       }}>
         {/* Root pill — always shown */}
-        <div style={{ display: "flex", justifyContent: "center", margin: "8px 0 6px" }}>
+        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 10, margin: "8px 0 6px" }}>
+          {orderIdx !== null && (
+            <button
+              onClick={() => { if (curFam) goTo(1); else goTo(0); }}
+              className="tree-node"
+              style={{
+                background: "none", border: "none", cursor: "pointer",
+                color: "#d0cbc3", fontSize: 28, fontWeight: 300, lineHeight: 1,
+                padding: "4px 2px", display: "flex", alignItems: "center",
+                transition: "color .2s",
+              }}
+              onMouseEnter={e => e.currentTarget.style.color = "#8a8070"}
+              onMouseLeave={e => e.currentTarget.style.color = "#d0cbc3"}
+              title="Go back"
+            >‹</button>
+          )}
           <button
             onClick={() => { if (curFam) goTo(1); else if (curOrder) goTo(0); }}
             className="tree-node"
