@@ -507,11 +507,22 @@ function SpeciesPage({ sp, hue, onBack }) {
     e.stopPropagation();
     const rect = canvasRef.current.getBoundingClientRect();
     const p = posRef.current[idx];
-    // Capture original crop so we can adjust it during resize
     const photoId = visible[idx]?.id;
     const origCrop = photoId ? getCrop(photoId) : null;
     const hasCropVal = origCrop && (origCrop.t > 0 || origCrop.r > 0 || origCrop.b > 0 || origCrop.l > 0);
-    setResizing({ idx, startX: e.clientX, startY: e.clientY, origW: p.w, origH: p.h, origX: p.x, origY: p.y, corner, rect, origCrop: hasCropVal ? origCrop : null, photoId });
+    // Compute visual box fraction for asymmetric crops
+    let cropFrac = null;
+    if (hasCropVal) {
+      const sx = 100 / (100 - origCrop.l - origCrop.r);
+      const sy = 100 / (100 - origCrop.t - origCrop.b);
+      const s = Math.min(sx, sy);
+      const fracW = (100 - origCrop.l - origCrop.r) / 100 * s;
+      const fracH = (100 - origCrop.t - origCrop.b) / 100 * s;
+      if (fracW < 0.999 || fracH < 0.999) {
+        cropFrac = { fracW, fracH, gapL: (1 - fracW) / 2, gapT: (1 - fracH) / 2 };
+      }
+    }
+    setResizing({ idx, startX: e.clientX, startY: e.clientY, origW: p.w, origH: p.h, origX: p.x, origY: p.y, corner, rect, origCrop: hasCropVal ? origCrop : null, photoId, cropFrac });
   };
 
   const onCropHandleDown = (e, idx, edge) => {
@@ -553,30 +564,63 @@ function SpeciesPage({ sp, hue, onBack }) {
       saveConfig({ ...configRef.current, positions: cur });
     }
     if (resizing) {
-      const { idx, startX, startY, origW, origH, origX, origY, corner, rect, origCrop, photoId } = resizing;
+      const { idx, startX, startY, origW, origH, origX, origY, corner, rect, origCrop, photoId, cropFrac } = resizing;
       const dx = ((e.clientX - startX) / rect.width) * 100;
       const dy = ((e.clientY - startY) / rect.height) * 100;
       const cur = [...posRef.current];
-      let nx = origX, ny = origY, nw = origW, nh = origH;
-      if (corner.includes("r")) nw = Math.max(10, origW + dx);
-      if (corner.includes("l")) { nw = Math.max(10, origW - dx); nx = origX + (origW - nw); }
-      if (corner.includes("b")) nh = Math.max(8, origH + dy);
-      if (corner.includes("t")) { nh = Math.max(8, origH - dy); ny = origY + (origH - nh); }
-      // Lock aspect ratio for cropped images — same shape = same crop
-      if (origCrop) {
-        const ar = origW / origH;
+      let nx, ny, nw, nh;
+      if (cropFrac) {
+        // Work in visual box coordinates for asymmetric crops
+        const { fracW, fracH, gapL, gapT } = cropFrac;
+        const ovx = origX + gapL * origW, ovy = origY + gapT * origH;
+        const ovw = origW * fracW, ovh = origH * fracH;
+        let nvx = ovx, nvy = ovy, nvw = ovw, nvh = ovh;
+        if (corner.includes("r")) nvw = Math.max(5, ovw + dx);
+        if (corner.includes("l")) { nvw = Math.max(5, ovw - dx); nvx = ovx + (ovw - nvw); }
+        if (corner.includes("b")) nvh = Math.max(4, ovh + dy);
+        if (corner.includes("t")) { nvh = Math.max(4, ovh - dy); nvy = ovy + (ovh - nvh); }
+        // AR lock on visual box
+        const ar = ovw / ovh;
         if (corner.length === 2) {
-          if (Math.abs(nw - origW) / origW >= Math.abs(nh - origH) / origH) {
-            nh = nw / ar;
-            if (corner.includes("t")) ny = origY + origH - nh;
+          if (Math.abs(nvw - ovw) / ovw >= Math.abs(nvh - ovh) / ovh) {
+            nvh = nvw / ar;
+            if (corner.includes("t")) nvy = ovy + ovh - nvh;
           } else {
-            nw = nh * ar;
-            if (corner.includes("l")) nx = origX + origW - nw;
+            nvw = nvh * ar;
+            if (corner.includes("l")) nvx = ovx + ovw - nvw;
           }
         } else if (corner === "r" || corner === "l") {
-          nh = nw / ar;
+          nvh = nvw / ar;
+          nvy = ovy + (ovh - nvh) / 2;
         } else {
-          nw = nh * ar;
+          nvw = nvh * ar;
+          nvx = ovx + (ovw - nvw) / 2;
+        }
+        // Convert visual box back to stored
+        nw = nvw / fracW; nh = nvh / fracH;
+        nx = nvx - gapL * nw; ny = nvy - gapT * nh;
+      } else {
+        nx = origX; ny = origY; nw = origW; nh = origH;
+        if (corner.includes("r")) nw = Math.max(10, origW + dx);
+        if (corner.includes("l")) { nw = Math.max(10, origW - dx); nx = origX + (origW - nw); }
+        if (corner.includes("b")) nh = Math.max(8, origH + dy);
+        if (corner.includes("t")) { nh = Math.max(8, origH - dy); ny = origY + (origH - nh); }
+        // Lock aspect ratio for cropped images — same shape = same crop
+        if (origCrop) {
+          const ar = origW / origH;
+          if (corner.length === 2) {
+            if (Math.abs(nw - origW) / origW >= Math.abs(nh - origH) / origH) {
+              nh = nw / ar;
+              if (corner.includes("t")) ny = origY + origH - nh;
+            } else {
+              nw = nh * ar;
+              if (corner.includes("l")) nx = origX + origW - nw;
+            }
+          } else if (corner === "r" || corner === "l") {
+            nh = nw / ar;
+          } else {
+            nw = nh * ar;
+          }
         }
       }
       cur[idx] = { ...cur[idx], x: Math.max(0, nx), y: Math.max(0, ny), w: Math.min(100, nw), h: Math.min(100, nh) };
@@ -820,8 +864,10 @@ function SpeciesPage({ sp, hue, onBack }) {
           const crop = getCrop(p.id);
           const isCropMode = editing && cropMode;
           const hasCrop = crop.t > 0 || crop.r > 0 || crop.b > 0 || crop.l > 0;
-          // Compute crop transform: zoom into the crop region of the cover view
+          // Compute crop transform and visual box adjustment
           let cropTransform = {};
+          let visualPos = pos;
+          let imgSizing = { width: "100%", height: "100%" };
           if (hasCrop && !isCropMode) {
             const sx = 100 / (100 - crop.l - crop.r);
             const sy = 100 / (100 - crop.t - crop.b);
@@ -835,6 +881,26 @@ function SpeciesPage({ sp, hue, onBack }) {
               transform: `scale(${s}) translate(${tx}%, ${ty}%)`,
               clipPath: `inset(${crop.t}% ${crop.r}% ${crop.b}% ${crop.l}%)`,
             };
+            // Shrink visual box to match visible crop content
+            const fracW = (100 - crop.l - crop.r) / 100 * s;
+            const fracH = (100 - crop.t - crop.b) / 100 * s;
+            if (fracW < 0.999 || fracH < 0.999) {
+              const gapL = (1 - fracW) / 2;
+              const gapT = (1 - fracH) / 2;
+              visualPos = {
+                x: pos.x + gapL * pos.w,
+                y: pos.y + gapT * pos.h,
+                w: pos.w * fracW,
+                h: pos.h * fracH,
+              };
+              imgSizing = {
+                position: "absolute",
+                width: `${100 / fracW}%`,
+                height: `${100 / fracH}%`,
+                left: `${-gapL / fracW * 100}%`,
+                top: `${-gapT / fracH * 100}%`,
+              };
+            }
           }
           return (
             <div key={p.id} data-photo-box
@@ -849,8 +915,8 @@ function SpeciesPage({ sp, hue, onBack }) {
               }}
               style={{
                 position: "absolute",
-                left: `${pos.x}%`, top: `${pos.y}%`,
-                width: `${pos.w}%`, height: `${pos.h}%`,
+                left: `${visualPos.x}%`, top: `${visualPos.y}%`,
+                width: `${visualPos.w}%`, height: `${visualPos.h}%`,
                 overflow: isCropMode ? "visible" : "hidden",
                 cursor: editing ? (cropMode ? "default" : "move") : "default",
                 outline: editing ? `1px dashed ${isCropMode ? `hsl(${hue}, 50%, 60%)` : `${mood.text}33`}` : "none",
@@ -859,7 +925,7 @@ function SpeciesPage({ sp, hue, onBack }) {
               <img src={p.full} alt={sp.is}
                 onLoad={e => { naturalDimsRef.current[p.id] = { w: e.target.naturalWidth, h: e.target.naturalHeight }; }}
                 style={{
-                  width: "100%", height: "100%",
+                  ...imgSizing,
                   objectFit: "cover",
                   ...cropTransform,
                   pointerEvents: "none",
