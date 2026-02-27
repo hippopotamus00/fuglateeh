@@ -497,7 +497,22 @@ function SpeciesPage({ sp, hue, onBack }) {
     e.preventDefault();
     if (!cropMode) {
       const rect = canvasRef.current.getBoundingClientRect();
-      setDragging({ idx, startX: e.clientX, startY: e.clientY, origX: posRef.current[idx].x, origY: posRef.current[idx].y, rect });
+      // Compute visual box fraction for move clamping
+      const photoId = visible[idx]?.id;
+      const crop = photoId ? getCrop(photoId) : { t: 0, r: 0, b: 0, l: 0 };
+      const hasCropVal = crop.t > 0 || crop.r > 0 || crop.b > 0 || crop.l > 0;
+      let moveFrac = null;
+      if (hasCropVal) {
+        const sx = 100 / (100 - crop.l - crop.r);
+        const sy = 100 / (100 - crop.t - crop.b);
+        const s = Math.min(sx, sy);
+        const fracW = (100 - crop.l - crop.r) / 100 * s;
+        const fracH = (100 - crop.t - crop.b) / 100 * s;
+        if (fracW < 0.999 || fracH < 0.999) {
+          moveFrac = { fracW, fracH, gapL: (1 - fracW) / 2, gapT: (1 - fracH) / 2 };
+        }
+      }
+      setDragging({ idx, startX: e.clientX, startY: e.clientY, origX: posRef.current[idx].x, origY: posRef.current[idx].y, rect, moveFrac });
     }
   };
 
@@ -556,11 +571,22 @@ function SpeciesPage({ sp, hue, onBack }) {
       updateCrop(idx, patch);
     }
     if (dragging) {
-      const { idx, startX, startY, origX, origY, rect } = dragging;
+      const { idx, startX, startY, origX, origY, rect, moveFrac } = dragging;
       const dx = ((e.clientX - startX) / rect.width) * 100;
       const dy = ((e.clientY - startY) / rect.height) * 100;
       const cur = [...posRef.current];
-      cur[idx] = { ...cur[idx], x: Math.max(0, Math.min(100 - cur[idx].w, origX + dx)), y: Math.max(0, Math.min(100 - cur[idx].h, origY + dy)) };
+      const pw = cur[idx].w, ph = cur[idx].h;
+      let newX = origX + dx, newY = origY + dy;
+      if (moveFrac) {
+        // Clamp so the visual (cropped) box stays within canvas
+        const { fracW, fracH, gapL, gapT } = moveFrac;
+        newX = Math.max(-gapL * pw, Math.min(100 - pw * (gapL + fracW), newX));
+        newY = Math.max(-gapT * ph, Math.min(100 - ph * (gapT + fracH), newY));
+      } else {
+        newX = Math.max(0, Math.min(100 - pw, newX));
+        newY = Math.max(0, Math.min(100 - ph, newY));
+      }
+      cur[idx] = { ...cur[idx], x: newX, y: newY };
       saveConfig({ ...configRef.current, positions: cur });
     }
     if (resizing) {
