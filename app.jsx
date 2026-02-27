@@ -1012,6 +1012,9 @@ function App() {
   const [selectedSp, setSelectedSp] = useState(null);
   const [filter, setFilter] = useState(null);
   const [animKey, setAnimKey] = useState(0);
+  const [editingFamilies, setEditingFamilies] = useState(false);
+  const [famPicker, setFamPicker] = useState(null); // { familyKey, familyLabel, photos[] }
+  const [famDragging, setFamDragging] = useState(null); // { familyKey, startX, startY, origX, origY, boxRect }
 
   const total = TAXONOMY.reduce((s, o) => s + o.families.reduce((s2, f) => s2 + f.species.length, 0), 0);
   const curOrder = orderIdx !== null ? TAXONOMY[orderIdx] : null;
@@ -1065,7 +1068,7 @@ function App() {
     const allSettings = {};
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
-      if (key.startsWith("sp:")) {
+      if (key.startsWith("sp:") || key.startsWith("fam:")) {
         allSettings[key] = localStorage.getItem(key);
       }
     }
@@ -1079,6 +1082,32 @@ function App() {
     URL.revokeObjectURL(url);
   };
 
+
+  // Family photo drag handlers
+  useEffect(() => {
+    if (!famDragging) return;
+    const onMove = (e) => {
+      const { familyKey, startX, startY, origX, origY, boxRect } = famDragging;
+      const dx = (e.clientX - startX) / boxRect.width * 100;
+      const dy = (e.clientY - startY) / boxRect.height * 100;
+      // Invert: dragging right moves object-position left (reveals right side)
+      const nx = Math.max(0, Math.min(100, origX - dx));
+      const ny = Math.max(0, Math.min(100, origY - dy));
+      setFamDragging(prev => ({ ...prev, curX: nx, curY: ny }));
+    };
+    const onUp = () => {
+      // Save final position
+      const { familyKey, curX, curY } = famDragging;
+      try {
+        const existing = JSON.parse(localStorage.getItem(`fam:${familyKey}`)) || {};
+        localStorage.setItem(`fam:${familyKey}`, JSON.stringify({ ...existing, objectPos: { x: curX, y: curY } }));
+      } catch(e) {}
+      setFamDragging(null);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => { window.removeEventListener("mousemove", onMove); window.removeEventListener("mouseup", onUp); };
+  }, [famDragging]);
 
   // Levels: 0=orders, 1=families, 2=species (with genus groups)
   const isSpeciesLevel = curFam !== null;
@@ -1219,6 +1248,16 @@ function App() {
               fontSize: 9, color: rootHue >= 0 ? `hsl(${rootHue}, 14%, 60%)` : "#807868",
               marginTop: 1 }}>{rootSub}</div>
           </button>
+          {orderIdx !== null && !isSpeciesLevel && (
+            <button onClick={() => setEditingFamilies(!editingFamilies)} style={{
+              background: editingFamilies ? `hsl(${hue}, 30%, 50%)` : "transparent",
+              border: editingFamilies ? "none" : "1px solid #c0b8aa33",
+              borderRadius: 16, padding: "5px 14px", cursor: "pointer",
+              fontFamily: "'JetBrains Mono',monospace", fontSize: 9.5,
+              color: editingFamilies ? "#fff" : "#8a8070",
+              opacity: editingFamilies ? 1 : 0.5,
+            }}>{editingFamilies ? "✓ Done" : "✎ Edit"}</button>
+          )}
         </div>
 
         {/* Tree nodes for order/family levels — fills remaining space */}
@@ -1230,41 +1269,106 @@ function App() {
             gap: 10, marginTop: 12,
             flex: 1,
           }}>
-            {items.map((p, i) => (
+            {items.map((p, i) => {
+              // Load family photo config (only for family level)
+              let famCfg = null;
+              if (orderIdx !== null) {
+                try {
+                  const raw = localStorage.getItem(`fam:${p.key}`);
+                  if (raw) famCfg = JSON.parse(raw);
+                } catch(e) {}
+              }
+              const famPhoto = famCfg?.photo || null;
+              const famPos = famCfg?.objectPos || { x: 50, y: 50 };
+              const isFamDrag = famDragging?.familyKey === p.key;
+              const dragPos = isFamDrag ? { x: famDragging.curX, y: famDragging.curY } : famPos;
+              const hasPhoto = !!famPhoto;
+              return (
               <button key={p.key} className="tree-node"
                 style={{
                   animationDelay: `${0.06 + i * 0.035}s`,
-                  background: "#fff", border: "1px solid #e2dfda",
-                  borderRadius: 12, padding: "16px 18px",
-                  cursor: "pointer", textAlign: "left",
-                  display: "flex", flexDirection: "column", justifyContent: "center",
-                  gap: 6,
+                  background: hasPhoto ? "#000" : "#fff",
+                  border: hasPhoto ? "none" : "1px solid #e2dfda",
+                  borderRadius: 12, padding: 0,
+                  cursor: editingFamilies && hasPhoto ? (isFamDrag ? "grabbing" : "grab") : "pointer",
+                  textAlign: "left",
+                  display: "flex", flexDirection: "column", justifyContent: "flex-end",
+                  position: "relative", overflow: "hidden",
                   transition: "border-color .2s, box-shadow .2s",
                   minHeight: 0,
                 }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = `hsl(${p.hue || hue}, 20%, 72%)`; e.currentTarget.style.boxShadow = "0 3px 16px rgba(0,0,0,0.06)"; }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = "#e2dfda"; e.currentTarget.style.boxShadow = "none"; }}
-                onClick={() => orderIdx === null ? pickOrder(p.idx) : pickFam(p.idx)}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <div style={{
-                    width: 10, height: 10, borderRadius: "50%", flexShrink: 0,
-                    background: `hsl(${p.hue || hue}, 28%, 65%)`,
+                onMouseEnter={e => { if (!hasPhoto) { e.currentTarget.style.borderColor = `hsl(${p.hue || hue}, 20%, 72%)`; e.currentTarget.style.boxShadow = "0 3px 16px rgba(0,0,0,0.06)"; } }}
+                onMouseLeave={e => { if (!hasPhoto) { e.currentTarget.style.borderColor = "#e2dfda"; e.currentTarget.style.boxShadow = "none"; } }}
+                onMouseDown={e => {
+                  if (editingFamilies && hasPhoto && orderIdx !== null) {
+                    e.preventDefault();
+                    const boxRect = e.currentTarget.getBoundingClientRect();
+                    setFamDragging({ familyKey: p.key, startX: e.clientX, startY: e.clientY, origX: famPos.x, origY: famPos.y, curX: famPos.x, curY: famPos.y, boxRect });
+                  }
+                }}
+                onClick={() => {
+                  if (famDragging) return; // ignore click after drag
+                  if (editingFamilies && orderIdx !== null) {
+                    // Open photo picker for this family
+                    const fam = curOrder.families[p.idx];
+                    const allPhotos = [];
+                    fam.species.forEach(sp => {
+                      const photos = PHOTOS[sp.sci] || [];
+                      photos.forEach(ph => allPhotos.push({ ...ph, speciesIs: sp.is, speciesSci: sp.sci }));
+                    });
+                    setFamPicker({ familyKey: p.key, familyLabel: p.label, photos: allPhotos, currentPhoto: famPhoto });
+                  } else {
+                    orderIdx === null ? pickOrder(p.idx) : pickFam(p.idx);
+                  }
+                }}>
+                {/* Photo background */}
+                {hasPhoto && (
+                  <img src={famPhoto} alt="" style={{
+                    position: "absolute", inset: 0, width: "100%", height: "100%",
+                    objectFit: "cover", objectPosition: `${dragPos.x}% ${dragPos.y}%`,
+                    pointerEvents: "none",
                   }} />
-                  <div style={{ fontFamily: "'Playfair Display',Georgia,serif",
-                    fontSize: 18, fontWeight: 500, color: "#2a2a2a" }}>
-                    {p.label}
+                )}
+                {/* Text content */}
+                <div style={{
+                  position: "relative", zIndex: 1, padding: "16px 18px",
+                  background: hasPhoto ? "linear-gradient(transparent, rgba(0,0,0,0.65))" : "none",
+                  display: "flex", flexDirection: "column", justifyContent: "flex-end", gap: 6,
+                  flex: 1,
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <div style={{
+                      width: 10, height: 10, borderRadius: "50%", flexShrink: 0,
+                      background: `hsl(${p.hue || hue}, 28%, 65%)`,
+                    }} />
+                    <div style={{ fontFamily: "'Playfair Display',Georgia,serif",
+                      fontSize: 18, fontWeight: 500, color: hasPhoto ? "#fff" : "#2a2a2a",
+                      textShadow: hasPhoto ? "0 1px 3px rgba(0,0,0,0.5)" : "none",
+                    }}>
+                      {p.label}
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", paddingLeft: 20 }}>
+                    <div style={{ fontFamily: "'JetBrains Mono',monospace",
+                      fontSize: 9.5, color: hasPhoto ? "rgba(255,255,255,0.6)" : "#bbb", fontStyle: "italic" }}>
+                      {p.sub}
+                    </div>
+                    <div style={{ fontFamily: "'JetBrains Mono',monospace",
+                      fontSize: 9.5, color: hasPhoto ? "rgba(255,255,255,0.5)" : "#d0cbc3" }}>{p.count} sp.</div>
                   </div>
                 </div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", paddingLeft: 20 }}>
-                  <div style={{ fontFamily: "'JetBrains Mono',monospace",
-                    fontSize: 9.5, color: "#bbb", fontStyle: "italic" }}>
-                    {p.sub}
-                  </div>
-                  <div style={{ fontFamily: "'JetBrains Mono',monospace",
-                    fontSize: 9.5, color: "#d0cbc3" }}>{p.count} sp.</div>
-                </div>
+                {/* Edit mode indicator */}
+                {editingFamilies && orderIdx !== null && (
+                  <div style={{
+                    position: "absolute", top: 8, right: 8, zIndex: 2,
+                    background: "rgba(0,0,0,0.4)", borderRadius: 8,
+                    padding: "2px 8px", fontFamily: "'JetBrains Mono',monospace",
+                    fontSize: 8, color: "#fff",
+                  }}>{hasPhoto ? "drag to position · click to change" : "click to pick photo"}</div>
+                )}
               </button>
-            ))}
+              );
+            })}
           </div>
         )}
 
@@ -1400,6 +1504,74 @@ function App() {
         })()}
       </div>
 
+      {/* Family photo picker modal */}
+      {famPicker && (
+        <div style={{
+          position: "fixed", inset: 0, zIndex: 100,
+          background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center",
+        }} onClick={() => setFamPicker(null)}>
+          <div className="modal-in" onClick={e => e.stopPropagation()} style={{
+            background: "#fff", borderRadius: 16, padding: "20px 24px",
+            maxWidth: 600, width: "90vw", maxHeight: "80vh", overflow: "auto",
+            boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+              <div style={{ fontFamily: "'Playfair Display',Georgia,serif", fontSize: 18, fontWeight: 600 }}>
+                {famPicker.familyLabel}
+              </div>
+              <button onClick={() => setFamPicker(null)} style={{
+                background: "none", border: "none", cursor: "pointer", fontSize: 18, color: "#aaa", padding: "4px 8px",
+              }}>✕</button>
+            </div>
+            {famPicker.currentPhoto && (
+              <button onClick={() => {
+                localStorage.removeItem(`fam:${famPicker.familyKey}`);
+                setFamPicker(null);
+              }} style={{
+                fontFamily: "'JetBrains Mono',monospace", fontSize: 9,
+                padding: "3px 10px", borderRadius: 10, cursor: "pointer",
+                background: "#fee", color: "#c44", border: "1px solid #ecc",
+                marginBottom: 12,
+              }}>Remove photo</button>
+            )}
+            {(() => {
+              // Group photos by species
+              const groups = new Map();
+              famPicker.photos.forEach(ph => {
+                if (!groups.has(ph.speciesSci)) groups.set(ph.speciesSci, { label: ph.speciesIs, photos: [] });
+                groups.get(ph.speciesSci).photos.push(ph);
+              });
+              return Array.from(groups.entries()).map(([sci, g]) => (
+                <div key={sci} style={{ marginBottom: 12 }}>
+                  <div style={{
+                    fontFamily: "'JetBrains Mono',monospace", fontSize: 9, color: "#aaa",
+                    fontStyle: "italic", marginBottom: 4,
+                  }}>{g.label}</div>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    {g.photos.map(ph => (
+                      <button key={ph.id} onClick={() => {
+                        const existing = (() => { try { return JSON.parse(localStorage.getItem(`fam:${famPicker.familyKey}`)) || {}; } catch(e) { return {}; } })();
+                        localStorage.setItem(`fam:${famPicker.familyKey}`, JSON.stringify({ ...existing, photo: ph.id, objectPos: existing.objectPos || { x: 50, y: 50 } }));
+                        setFamPicker(null);
+                      }} style={{
+                        width: 80, height: 60, padding: 0, border: famPicker.currentPhoto === ph.id ? `2px solid hsl(${hue}, 50%, 50%)` : "2px solid transparent",
+                        borderRadius: 6, cursor: "pointer", overflow: "hidden", background: "#000",
+                      }}>
+                        <img src={ph.thumb} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ));
+            })()}
+            {famPicker.photos.length === 0 && (
+              <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: "#aaa", padding: 20, textAlign: "center" }}>
+                No photos available in this family
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
