@@ -477,9 +477,6 @@ function SpeciesPage({ sp, hue, onBack }) {
     saveConfig({ ...cur, hidden: newHidden, positions: newPositions, crops: newCrops });
   };
 
-  const setPoster = (photoId) => {
-    saveConfig({ ...configRef.current, poster: photoId });
-  };
 
   const getCrop = (photoId) => {
     const c = cropsRef.current[photoId];
@@ -788,18 +785,6 @@ function SpeciesPage({ sp, hue, onBack }) {
                           display: "flex", alignItems: "center", justifyContent: "center",
                           lineHeight: 1, padding: 0,
                         }}>{isHidden ? "+" : "×"}</button>
-                      {/* Poster button */}
-                      <button onClick={() => setPoster(photoId)}
-                        title={isPoster ? "Current poster" : "Set as poster"}
-                        style={{
-                          position: "absolute", bottom: -5, left: "50%", transform: "translateX(-50%)",
-                          width: 14, height: 14, borderRadius: "50%",
-                          background: isPoster ? "#f5c542" : "rgba(100,100,100,0.6)",
-                          color: isPoster ? "#000" : "#fff", border: "none", cursor: "pointer",
-                          fontFamily: "sans-serif", fontSize: 8,
-                          display: "flex", alignItems: "center", justifyContent: "center",
-                          lineHeight: 1, padding: 0,
-                        }}>★</button>
                     </div>
                   );
                 })}
@@ -1015,6 +1000,9 @@ function App() {
   const [editingFamilies, setEditingFamilies] = useState(false);
   const [famPicker, setFamPicker] = useState(null); // { familyKey, familyLabel, photos[] }
   const [famDragging, setFamDragging] = useState(null); // { familyKey, startX, startY, origX, origY, boxRect }
+  const [editingSpecies, setEditingSpecies] = useState(false);
+  const [spPicker, setSpPicker] = useState(null); // { speciesKey, speciesLabel, photos[] }
+  const [spDragging, setSpDragging] = useState(null); // { speciesKey, startX, startY, origX, origY, curX, curY, boxRect }
 
   const total = TAXONOMY.reduce((s, o) => s + o.families.reduce((s2, f) => s2 + f.species.length, 0), 0);
   const curOrder = orderIdx !== null ? TAXONOMY[orderIdx] : null;
@@ -1108,6 +1096,30 @@ function App() {
     window.addEventListener("mouseup", onUp);
     return () => { window.removeEventListener("mousemove", onMove); window.removeEventListener("mouseup", onUp); };
   }, [famDragging]);
+
+  // Species card photo drag handlers
+  useEffect(() => {
+    if (!spDragging) return;
+    const onMove = (e) => {
+      const { startX, startY, origX, origY, boxRect } = spDragging;
+      const dx = (e.clientX - startX) / boxRect.width * 100;
+      const dy = (e.clientY - startY) / boxRect.height * 100;
+      const nx = Math.max(0, Math.min(100, origX - dx));
+      const ny = Math.max(0, Math.min(100, origY - dy));
+      setSpDragging(prev => ({ ...prev, curX: nx, curY: ny }));
+    };
+    const onUp = () => {
+      const { speciesKey, curX, curY } = spDragging;
+      try {
+        const existing = JSON.parse(localStorage.getItem(`sp:${speciesKey}`)) || {};
+        localStorage.setItem(`sp:${speciesKey}`, JSON.stringify({ ...existing, posterPos: { x: curX, y: curY } }));
+      } catch(e) {}
+      setSpDragging(null);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => { window.removeEventListener("mousemove", onMove); window.removeEventListener("mouseup", onUp); };
+  }, [spDragging]);
 
   // Levels: 0=orders, 1=families, 2=species (with genus groups)
   const isSpeciesLevel = curFam !== null;
@@ -1257,6 +1269,16 @@ function App() {
               color: editingFamilies ? "#fff" : "#8a8070",
               opacity: editingFamilies ? 1 : 0.5,
             }}>{editingFamilies ? "✓ Done" : "✎ Edit"}</button>
+          )}
+          {isSpeciesLevel && (
+            <button onClick={() => setEditingSpecies(!editingSpecies)} style={{
+              background: editingSpecies ? `hsl(${hue}, 30%, 50%)` : "transparent",
+              border: editingSpecies ? "none" : "1px solid #c0b8aa33",
+              borderRadius: 16, padding: "5px 14px", cursor: "pointer",
+              fontFamily: "'JetBrains Mono',monospace", fontSize: 9.5,
+              color: editingSpecies ? "#fff" : "#8a8070",
+              opacity: editingSpecies ? 1 : 0.5,
+            }}>{editingSpecies ? "✓ Done" : "✎ Edit"}</button>
           )}
         </div>
 
@@ -1426,10 +1448,12 @@ function App() {
                       const bg1 = `hsl(${hue}, 18%, 88%)`;
                       const bg2 = `hsl(${(hue + 25) % 360}, 12%, 82%)`;
                       const photos = PHOTOS[sp.sci] || [];
-                      // Check for saved poster preference
+                      const spKey = sp.sci.replace(/ /g, "_");
+                      // Check for saved poster preference + position
                       let thumb = photos.length > 0 ? photos[0].thumb : null;
+                      let posterPos = { x: 50, y: 50 };
                       try {
-                        const raw = localStorage.getItem(`sp:${sp.sci.replace(/ /g, "_")}`);
+                        const raw = localStorage.getItem(`sp:${spKey}`);
                         if (raw) {
                           const cfg = JSON.parse(raw);
                           if (cfg.poster != null) {
@@ -1440,38 +1464,68 @@ function App() {
                               thumb = photos[cfg.poster].thumb;
                             }
                           }
+                          if (cfg.posterPos) posterPos = cfg.posterPos;
                         }
                       } catch(e) {}
                       const hasPhoto = !!thumb;
+                      const isDraggingSp = spDragging && spDragging.speciesKey === spKey;
+                      const dragPos = isDraggingSp ? { x: spDragging.curX, y: spDragging.curY } : posterPos;
                       return (
                         <button key={sp.sci}
                           className="sp-card"
                           style={{
                             animationDelay: `${0.08 + gi * 0.05 + si * 0.025}s`,
                             background: "#000", border: "none",
-                            padding: 0, cursor: "pointer", textAlign: "left",
+                            padding: 0, cursor: editingSpecies && hasPhoto ? (isDraggingSp ? "grabbing" : "grab") : "pointer",
+                            textAlign: "left",
                             display: "block",
                             width: CARD_W,
                             flexShrink: 0,
                             position: "relative",
                             overflow: "hidden",
                           }}
-                          onClick={() => setSelectedSp(sp)}>
+                          onMouseDown={e => {
+                            if (editingSpecies && hasPhoto) {
+                              e.preventDefault();
+                              const boxRect = e.currentTarget.getBoundingClientRect();
+                              setSpDragging({ speciesKey: spKey, startX: e.clientX, startY: e.clientY, origX: posterPos.x, origY: posterPos.y, curX: posterPos.x, curY: posterPos.y, boxRect });
+                            }
+                          }}
+                          onClick={() => {
+                            if (spDragging) return;
+                            if (editingSpecies) {
+                              setSpPicker({ speciesKey: spKey, speciesLabel: sp.is, photos, currentThumb: thumb });
+                            } else {
+                              setSelectedSp(sp);
+                            }
+                          }}>
                           {/* Image fills entire card */}
                           <div style={{
                             width: "100%", aspectRatio: "3/2.5",
                             background: hasPhoto ? "#000" : `linear-gradient(135deg, ${bg1}, ${bg2})`,
                             display: "flex", alignItems: "center", justifyContent: "center",
+                            position: "relative",
                           }}>
                             {hasPhoto ? (
                               <img src={thumb} alt={sp.is} style={{
                                 width: "100%", height: "100%",
                                 objectFit: "cover",
+                                objectPosition: `${dragPos.x}% ${dragPos.y}%`,
+                                pointerEvents: "none",
                               }} />
                             ) : (
                               <span style={{ fontSize: 36, opacity: 0.1 }}>🐦</span>
                             )}
                           </div>
+                          {/* Edit mode indicator */}
+                          {editingSpecies && (
+                            <div style={{
+                              position: "absolute", top: 6, right: 6, zIndex: 2,
+                              background: "rgba(0,0,0,0.4)", borderRadius: 8,
+                              padding: "2px 8px", fontFamily: "'JetBrains Mono',monospace",
+                              fontSize: 7, color: "#fff",
+                            }}>{hasPhoto ? "drag · click" : "click to pick"}</div>
+                          )}
                           {/* Text overlay at bottom */}
                           <div style={{
                             position: "absolute", bottom: 0, left: 0, right: 0,
@@ -1567,6 +1621,64 @@ function App() {
             {famPicker.photos.length === 0 && (
               <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: "#aaa", padding: 20, textAlign: "center" }}>
                 No photos available in this family
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Species photo picker modal */}
+      {spPicker && (
+        <div style={{
+          position: "fixed", inset: 0, zIndex: 100,
+          background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center",
+        }} onClick={() => setSpPicker(null)}>
+          <div className="modal-in" onClick={e => e.stopPropagation()} style={{
+            background: "#fff", borderRadius: 16, padding: "20px 24px",
+            maxWidth: 600, width: "90vw", maxHeight: "80vh", overflow: "auto",
+            boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+              <div style={{ fontFamily: "'Playfair Display',Georgia,serif", fontSize: 18, fontWeight: 600 }}>
+                {spPicker.speciesLabel}
+              </div>
+              <button onClick={() => setSpPicker(null)} style={{
+                background: "none", border: "none", cursor: "pointer", fontSize: 18, color: "#aaa", padding: "4px 8px",
+              }}>✕</button>
+            </div>
+            {spPicker.currentThumb && (
+              <button onClick={() => {
+                try {
+                  const existing = JSON.parse(localStorage.getItem(`sp:${spPicker.speciesKey}`)) || {};
+                  delete existing.poster;
+                  delete existing.posterPos;
+                  localStorage.setItem(`sp:${spPicker.speciesKey}`, JSON.stringify(existing));
+                } catch(e) {}
+                setSpPicker(null);
+              }} style={{
+                fontFamily: "'JetBrains Mono',monospace", fontSize: 9,
+                padding: "3px 10px", borderRadius: 10, cursor: "pointer",
+                background: "#fee", color: "#c44", border: "1px solid #ecc",
+                marginBottom: 12,
+              }}>Remove photo</button>
+            )}
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {spPicker.photos.map(ph => (
+                <button key={ph.id} onClick={() => {
+                  const existing = (() => { try { return JSON.parse(localStorage.getItem(`sp:${spPicker.speciesKey}`)) || {}; } catch(e) { return {}; } })();
+                  localStorage.setItem(`sp:${spPicker.speciesKey}`, JSON.stringify({ ...existing, poster: ph.id, posterPos: { x: 50, y: 50 } }));
+                  setSpPicker(null);
+                }} style={{
+                  width: 80, height: 60, padding: 0, border: spPicker.currentThumb === ph.thumb ? `2px solid hsl(${hue}, 50%, 50%)` : "2px solid transparent",
+                  borderRadius: 6, cursor: "pointer", overflow: "hidden", background: "#000",
+                }}>
+                  <img src={ph.thumb} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                </button>
+              ))}
+            </div>
+            {spPicker.photos.length === 0 && (
+              <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: "#aaa", padding: 20, textAlign: "center" }}>
+                No photos available for this species
               </div>
             )}
           </div>
