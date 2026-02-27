@@ -372,6 +372,7 @@ function SpeciesPage({ sp, hue, onBack }) {
   const [dragging, setDragging] = useState(null); // { idx, startX, startY, origX, origY }
   const [resizing, setResizing] = useState(null); // { idx, startX, startY, origW, origH, corner }
   const [cropping, setCropping] = useState(null); // { idx, startX, startY, origPanX, origPanY }
+  const [frontIdx, setFrontIdx] = useState(null); // photo index brought to front via double-click
   const canvasRef = React.useRef(null);
   const naturalDimsRef = React.useRef({});
 
@@ -937,6 +938,8 @@ function SpeciesPage({ sp, hue, onBack }) {
                   const newCrops = { ...(cur.crops || {}) };
                   delete newCrops[p.id];
                   saveConfig({ ...cur, crops: newCrops });
+                } else if (editing && !cropMode) {
+                  setFrontIdx(i);
                 }
               }}
               style={{
@@ -946,7 +949,7 @@ function SpeciesPage({ sp, hue, onBack }) {
                 overflow: isCropMode ? "visible" : "hidden",
                 cursor: editing ? (cropMode ? "default" : "move") : "default",
                 outline: editing ? `1px dashed ${isCropMode ? `hsl(${hue}, 50%, 60%)` : `${mood.text}33`}` : "none",
-                zIndex: (dragging?.idx === i || cropping?.idx === p.id) ? 10 : 1,
+                zIndex: (dragging?.idx === i || cropping?.idx === p.id) ? 10 : (frontIdx === i ? 5 : 1),
               }}>
               <img src={p.full} alt={sp.is}
                 onLoad={e => { naturalDimsRef.current[p.id] = { w: e.target.naturalWidth, h: e.target.naturalHeight }; }}
