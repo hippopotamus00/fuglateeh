@@ -282,8 +282,8 @@ function balancedRowSizes(n, maxPerRow) {
   const numRows = Math.ceil(n / maxPerRow);
   const base = Math.floor(n / numRows);
   const extra = n % numRows;
-  // Larger rows first, smaller rows last — so centering looks natural
-  return Array.from({ length: numRows }, (_, r) => r < extra ? base + 1 : base);
+  // Smaller rows first, larger rows last — most cards at bottom
+  return Array.from({ length: numRows }, (_, r) => r < (numRows - extra) ? base : base + 1);
 }
 
 function splitIntoRows(items, maxPerRow) {
@@ -1325,7 +1325,7 @@ function App() {
         {!isSpeciesLevel && (() => {
           const maxPerRow = Math.min(items.length, 5);
           const itemRows = splitIntoRows(items, maxPerRow);
-          const maxRowLen = itemRows[0].length;
+          const maxRowLen = Math.max(...itemRows.map(r => r.length));
           return (
           <div style={{
             display: "flex", flexDirection: "column",
@@ -1467,16 +1467,25 @@ function App() {
           const totalSp = genusGroups.reduce((s, g) => s + g.species.length, 0);
           // Scale card size: fewer species = bigger cards
           const CARD_MIN = totalSp <= 2 ? 260 : totalSp <= 4 ? 220 : totalSp <= 8 ? 190 : totalSp <= 15 ? 170 : 150;
+          const genusMaxPerRow = Math.min(genusGroups.length, 4);
+          const genusRows = splitIntoRows(genusGroups, genusMaxPerRow);
           return (
           <div style={{
             marginTop: 20,
-            display: "flex", flexWrap: "wrap", gap: 12,
-            alignItems: "flex-start", justifyContent: "center",
+            display: "flex", flexDirection: "column", gap: 12,
           }}>
-            {genusGroups.map((g, gi) => {
+            {genusRows.map((gRow, gri) => {
+            const rowOffset = genusRows.slice(0, gri).reduce((a, r) => a + r.length, 0);
+            return (
+            <div key={gri} style={{
+              display: "flex", flexWrap: "wrap", gap: 12,
+              justifyContent: "center", alignItems: "flex-start",
+            }}>
+            {gRow.map((g, gIdx) => {
+              const gi = rowOffset + gIdx;
               const maxPerRow = Math.min(g.species.length, 5);
               const spRows = splitIntoRows(g.species, maxPerRow);
-              const maxRowLen = spRows[0].length;
+              const maxRowLen = Math.max(...spRows.map(r => r.length));
               const innerW = maxRowLen * CARD_MIN;
               return (
                 <div key={g.genus} className="sp-card"
@@ -1617,6 +1626,9 @@ function App() {
                   </div>
                 </div>
               );
+            })}
+            </div>
+            );
             })}
           </div>
           );
