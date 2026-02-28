@@ -1092,6 +1092,7 @@ function App() {
   const [editingSpecies, setEditingSpecies] = useState(false);
   const [spPicker, setSpPicker] = useState(null); // { speciesKey, speciesLabel, photos[] }
   const [spDragging, setSpDragging] = useState(null); // { speciesKey, startX, startY, origX, origY, curX, curY, boxRect }
+  const spDidDrag = React.useRef(false);
   const [editingOrders, setEditingOrders] = useState(false);
   const [ordPicker, setOrdPicker] = useState(null); // { orderKey, orderLabel, photos[] }
   const [ordDragging, setOrdDragging] = useState(null); // { orderKey, startX, startY, origX, origY, curX, curY, boxRect }
@@ -1198,6 +1199,7 @@ function App() {
       const dy = (e.clientY - startY) / boxRect.height * 100;
       const nx = Math.max(0, Math.min(100, origX - dx));
       const ny = Math.max(0, Math.min(100, origY - dy));
+      spDidDrag.current = true;
       setSpDragging(prev => ({ ...prev, curX: nx, curY: ny }));
     };
     const onUp = () => {
@@ -1695,7 +1697,7 @@ function App() {
                             }
                           }}
                           onClick={() => {
-                            if (spDragging) return;
+                            if (spDragging || spDidDrag.current) { spDidDrag.current = false; return; }
                             if (editingSpecies) {
                               setSpPicker({ speciesKey: spKey, speciesLabel: sp.is, photos, currentThumb: thumb });
                             } else {
