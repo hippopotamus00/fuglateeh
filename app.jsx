@@ -1442,8 +1442,16 @@ function App() {
             alignItems: "flex-start", justifyContent: "center",
           }}>
             {genusGroups.map((g, gi) => {
-              // Groups with many species span full width; smaller ones share a row
-              const groupBasis = g.species.length > 3 ? "100%" : `${g.species.length * (CARD_MIN + 4)}px`;
+              const count = g.species.length;
+              // Balanced rows: find the most even split (max 5 per row)
+              let perRow;
+              if (count <= 5) perRow = count;
+              else if (count % 4 === 0) perRow = 4;
+              else if (count % 3 === 0) perRow = 3;
+              else if (count % 5 === 0) perRow = 5;
+              else if (count <= 8) perRow = Math.ceil(count / 2);
+              else perRow = Math.ceil(count / Math.ceil(count / 4));
+              const innerW = perRow * CARD_MIN;
               return (
                 <div key={g.genus} className="sp-card"
                   style={{
@@ -1451,8 +1459,8 @@ function App() {
                     border: `1px solid hsl(${hue}, 12%, 85%)`,
                     borderRadius: 10, overflow: "hidden",
                     background: "#fff",
-                    flex: `1 1 ${groupBasis}`,
-                    minWidth: Math.min(CARD_MIN + 2, 200),
+                    flex: "0 0 auto",
+                    width: innerW + 2,
                     maxWidth: "100%",
                   }}>
                   {/* Genus header */}
@@ -1469,10 +1477,9 @@ function App() {
                     }}>{g.genus}</span>
                   </div>
 
-                  {/* Species cards — responsive grid */}
+                  {/* Species cards — flex wrap */}
                   <div style={{
-                    display: "grid",
-                    gridTemplateColumns: `repeat(auto-fill, minmax(${CARD_MIN}px, 1fr))`,
+                    display: "flex", flexWrap: "wrap",
                   }}>
                     {g.species.map((sp, si) => {
                       const bg1 = `hsl(${hue}, 18%, 88%)`;
@@ -1509,7 +1516,8 @@ function App() {
                             padding: 0, cursor: editingSpecies && hasPhoto ? (isDraggingSp ? "grabbing" : "grab") : "pointer",
                             textAlign: "left",
                             display: "block",
-                            width: "100%",
+                            width: CARD_MIN,
+                            flexShrink: 0,
                             position: "relative",
                             overflow: "hidden",
                           }}
