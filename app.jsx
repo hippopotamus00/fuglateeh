@@ -363,6 +363,7 @@ function normalizeConfig(config, photos) {
     const c = result.crops[key];
     if (c && !c.t && !c.r && !c.b && !c.l) delete result.crops[key];
   }
+  if (!result.mirrors) result.mirrors = {};
 
   // Detect new photos → append to order and auto-hide
   const knownIds = new Set(result.order);
@@ -379,6 +380,9 @@ function normalizeConfig(config, photos) {
   if (result.poster && !currentIds.has(result.poster)) result.poster = null;
   for (const key of Object.keys(result.crops)) {
     if (!currentIds.has(key)) delete result.crops[key];
+  }
+  for (const key of Object.keys(result.mirrors)) {
+    if (!currentIds.has(key)) delete result.mirrors[key];
   }
 
   return result;
@@ -440,10 +444,13 @@ function SpeciesPage({ sp, hue, onBack }) {
   const visibleCount = visible.length;
   const positions = config?.positions || autoLayout(visibleCount);
   const crops = config?.crops || {};
+  const mirrors = config?.mirrors || {};
   const posRef = React.useRef(positions);
   posRef.current = positions;
   const cropsRef = React.useRef(crops);
   cropsRef.current = crops;
+  const mirrorsRef = React.useRef(mirrors);
+  mirrorsRef.current = mirrors;
   const configRef = React.useRef(config);
   configRef.current = config;
 
@@ -510,6 +517,15 @@ function SpeciesPage({ sp, hue, onBack }) {
     const cur = { ...cropsRef.current };
     cur[photoId] = { ...getCrop(photoId), ...patch };
     saveConfig({ ...configRef.current, crops: cur });
+  };
+
+  const getMirror = (photoId) => !!mirrorsRef.current[photoId];
+
+  const toggleMirror = (photoId) => {
+    const cur = { ...mirrorsRef.current };
+    if (cur[photoId]) delete cur[photoId];
+    else cur[photoId] = true;
+    saveConfig({ ...configRef.current, mirrors: cur });
   };
 
   // Mouse handlers for drag
@@ -972,6 +988,7 @@ function SpeciesPage({ sp, hue, onBack }) {
               };
             }
           }
+          const isMirrored = getMirror(p.id);
           return (
             <div key={p.id} data-photo-box
               onMouseDown={e => onMouseDown(e, i)}
@@ -1000,6 +1017,7 @@ function SpeciesPage({ sp, hue, onBack }) {
                   ...imgSizing,
                   objectFit: "cover",
                   ...cropTransform,
+                  ...(isMirrored ? { transform: (cropTransform.transform || "") + " scaleX(-1)" } : {}),
                   pointerEvents: "none",
                 }} />
               {/* Crop mode: dim overlay outside crop region + handles */}
@@ -1031,6 +1049,17 @@ function SpeciesPage({ sp, hue, onBack }) {
                   padding: "1px 8px", borderRadius: 8, whiteSpace: "nowrap", pointerEvents: "none",
                 }}>{hasCrop ? "drag to move · double-click to reset" : "drag edges to crop"}</div>
               </>}
+              {/* Mirror toggle in edit mode */}
+              {editing && (
+                <button onClick={e => { e.stopPropagation(); toggleMirror(p.id); }} style={{
+                  position: "absolute", top: 4, left: 4, zIndex: 4,
+                  width: 22, height: 22, padding: 0, border: "none", borderRadius: 4,
+                  background: isMirrored ? `hsl(${hue}, 40%, 50%)` : "rgba(0,0,0,0.4)",
+                  color: "#fff", fontSize: 12, cursor: "pointer",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontFamily: "sans-serif", lineHeight: 1,
+                }}>↔</button>
+              )}
               {/* Resize handles in edit mode (only in move mode) */}
               {editing && !cropMode && <>
                 {resizeHandle(i, "rb", "se-resize", { bottom: -2, right: -2 })}
@@ -1387,6 +1416,7 @@ function App() {
               } catch(e) {}
               const nodePhoto = nodeCfg?.photo || null;
               const nodePos = nodeCfg?.objectPos || { x: 50, y: 50 };
+              const nodeMirrored = !!nodeCfg?.mirrored;
               const activeDrag = isOrderLevel ? ordDragging : famDragging;
               const isDrag = isOrderLevel ? (ordDragging?.orderKey === p.key) : (famDragging?.familyKey === p.key);
               const dragPos = isDrag ? { x: activeDrag.curX, y: activeDrag.curY } : nodePos;
@@ -1451,6 +1481,7 @@ function App() {
                   <img src={nodePhoto} alt="" style={{
                     position: "absolute", inset: 0, width: "100%", height: "100%",
                     objectFit: "cover", objectPosition: `${dragPos.x}% ${dragPos.y}%`,
+                    transform: nodeMirrored ? "scaleX(-1)" : "none",
                     pointerEvents: "none",
                   }} />
                 )}
@@ -1490,6 +1521,24 @@ function App() {
                     padding: "2px 8px", fontFamily: "'JetBrains Mono',monospace",
                     fontSize: 8, color: "#fff",
                   }}>{hasPhoto ? "drag · click" : "click to pick"}</div>
+                )}
+                {/* Mirror toggle */}
+                {isEditing && hasPhoto && (
+                  <div onClick={e => {
+                    e.stopPropagation();
+                    try {
+                      const existing = JSON.parse(localStorage.getItem(storageKey)) || {};
+                      localStorage.setItem(storageKey, JSON.stringify({ ...existing, mirrored: !nodeMirrored }));
+                      setAnimKey(k => k + 1);
+                    } catch(e) {}
+                  }} style={{
+                    position: "absolute", top: 8, left: 8, zIndex: 2,
+                    width: 22, height: 22, borderRadius: 4,
+                    background: nodeMirrored ? `hsl(${p.hue || hue}, 40%, 50%)` : "rgba(0,0,0,0.4)",
+                    color: "#fff", fontSize: 12, cursor: "pointer",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontFamily: "sans-serif", lineHeight: 1,
+                  }}>↔</div>
                 )}
               </button>
               );
@@ -1571,6 +1620,7 @@ function App() {
                       const spKey = sp.sci.replace(/ /g, "_");
                       let thumb = photos.length > 0 ? photos[0].thumb : null;
                       let posterPos = { x: 50, y: 50 };
+                      let spMirrored = false;
                       try {
                         const raw = localStorage.getItem(`sp:${spKey}`);
                         if (raw) {
@@ -1584,6 +1634,7 @@ function App() {
                             }
                           }
                           if (cfg.posterPos) posterPos = cfg.posterPos;
+                          if (cfg.posterMirrored) spMirrored = true;
                         }
                       } catch(e) {}
                       const hasPhoto = !!thumb;
@@ -1631,8 +1682,27 @@ function App() {
                               position: "absolute", inset: 0, width: "100%", height: "100%",
                               objectFit: "cover",
                               objectPosition: `${dragPos.x}% ${dragPos.y}%`,
+                              transform: spMirrored ? "scaleX(-1)" : "none",
                               pointerEvents: "none",
                             }} />
+                          )}
+                          {/* Mirror toggle */}
+                          {editingSpecies && hasPhoto && (
+                            <div onClick={e => {
+                              e.stopPropagation();
+                              try {
+                                const existing = JSON.parse(localStorage.getItem(`sp:${spKey}`)) || {};
+                                localStorage.setItem(`sp:${spKey}`, JSON.stringify({ ...existing, posterMirrored: !spMirrored }));
+                                setAnimKey(k => k + 1);
+                              } catch(e) {}
+                            }} style={{
+                              position: "absolute", top: 4, left: 4, zIndex: 2,
+                              width: 18, height: 18, borderRadius: 3,
+                              background: spMirrored ? `hsl(${hue}, 40%, 50%)` : "rgba(0,0,0,0.4)",
+                              color: "#fff", fontSize: 10, cursor: "pointer",
+                              display: "flex", alignItems: "center", justifyContent: "center",
+                              fontFamily: "sans-serif", lineHeight: 1,
+                            }}>↔</div>
                           )}
                           {editingSpecies && (
                             <div style={{
