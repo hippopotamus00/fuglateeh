@@ -1167,8 +1167,6 @@ function App() {
     minColW = 240;
   }
 
-  // Grid column sizing: use auto-fill so boxes adapt to screen width
-  const gridColTemplate = `repeat(auto-fill, minmax(${minColW}px, 1fr))`;
 
   // If a species is selected, show full-page species view
   if (selectedSp) {
@@ -1304,9 +1302,8 @@ function App() {
         {/* Tree nodes for order/family levels — fills remaining space */}
         {!isSpeciesLevel && (
           <div style={{
-            display: "grid",
-            gridTemplateColumns: gridColTemplate,
-            gridAutoRows: "1fr",
+            display: "flex", flexWrap: "wrap",
+            justifyContent: "center", alignContent: "stretch",
             gap: 10, marginTop: 12,
             flex: 1,
           }}>
@@ -1338,7 +1335,7 @@ function App() {
                   display: "flex", flexDirection: "column", justifyContent: "flex-end",
                   position: "relative", overflow: "hidden",
                   transition: "border-color .2s, box-shadow .2s",
-                  minHeight: 0,
+                  width: minColW, flex: "0 0 auto",
                 }}
                 onMouseEnter={e => { if (!hasPhoto) { e.currentTarget.style.borderColor = `hsl(${p.hue || hue}, 20%, 72%)`; e.currentTarget.style.boxShadow = "0 3px 16px rgba(0,0,0,0.06)"; } }}
                 onMouseLeave={e => { if (!hasPhoto) { e.currentTarget.style.borderColor = "#e2dfda"; e.currentTarget.style.boxShadow = "none"; } }}
