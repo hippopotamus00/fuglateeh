@@ -1550,12 +1550,21 @@ function App() {
                       const hasPhoto = !!thumb;
                       const isDraggingSp = spDragging && spDragging.speciesKey === spKey;
                       const dragPos = isDraggingSp ? { x: spDragging.curX, y: spDragging.curY } : posterPos;
+                      // Compute edge border-radius: round only outer edges matching genus box (9px)
+                      const row = Math.floor(si / cols);
+                      const col = si % cols;
+                      const totalRows = Math.ceil(n / cols);
+                      const isBottom = row === totalRows - 1;
+                      const isLeft = col === 0;
+                      const isRight = isBottom ? si === n - 1 : col === cols - 1;
+                      const R = 9;
+                      const br = `0 0 ${isBottom && isRight ? R : 0}px ${isBottom && isLeft ? R : 0}px`;
                       return (
                         <button key={sp.sci}
                           style={{
                             background: hasPhoto ? "#000" : "#fff",
                             border: "none",
-                            borderRadius: 0, padding: 0,
+                            borderRadius: br, padding: 0,
                             cursor: editingSpecies && hasPhoto ? (isDraggingSp ? "grabbing" : "grab") : "pointer",
                             textAlign: "left",
                             display: "flex", flexDirection: "column", justifyContent: "flex-end",
