@@ -394,6 +394,7 @@ function SpeciesPage({ sp, hue, onBack }) {
   const [dragging, setDragging] = useState(null); // { idx, startX, startY, origX, origY }
   const [resizing, setResizing] = useState(null); // { idx, startX, startY, origW, origH, corner }
   const [cropping, setCropping] = useState(null); // { idx, startX, startY, origPanX, origPanY }
+  const [cropDragging, setCropDragging] = useState(null); // { idx, startX, startY, orig, boxRect }
   const [frontIdx, setFrontIdx] = useState(null); // photo index brought to front via double-click
   const canvasRef = React.useRef(null);
   const naturalDimsRef = React.useRef({});
@@ -569,6 +570,15 @@ function SpeciesPage({ sp, hue, onBack }) {
     setCropping({ idx, edge, startX: e.clientX, startY: e.clientY, orig: getCrop(idx), boxRect });
   };
 
+  const onCropDragDown = (e, idx) => {
+    if (!editing || !cropMode) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const el = e.target.closest("[data-photo-box]");
+    const boxRect = el ? el.getBoundingClientRect() : { width: 1, height: 1 };
+    setCropDragging({ idx, startX: e.clientX, startY: e.clientY, orig: getCrop(idx), boxRect });
+  };
+
   const onMouseMove = useCallback((e) => {
     if (cropping) {
       const { idx, edge, startX, startY, orig, boxRect } = cropping;
@@ -589,6 +599,19 @@ function SpeciesPage({ sp, hue, onBack }) {
       if (patch.l + patch.r > 80) { patch.l = orig.l; patch.r = orig.r; }
       if (patch.t + patch.b > 80) { patch.t = orig.t; patch.b = orig.b; }
       updateCrop(idx, patch);
+    }
+    if (cropDragging) {
+      const { idx, startX, startY, orig, boxRect } = cropDragging;
+      const dx = ((e.clientX - startX) / boxRect.width) * 100;
+      const dy = ((e.clientY - startY) / boxRect.height) * 100;
+      const cropW = 100 - orig.l - orig.r;
+      const cropH = 100 - orig.t - orig.b;
+      let newL = orig.l + dx;
+      let newT = orig.t + dy;
+      // Clamp so crop frame stays within image
+      newL = Math.max(0, Math.min(100 - cropW, newL));
+      newT = Math.max(0, Math.min(100 - cropH, newT));
+      updateCrop(idx, { t: newT, b: 100 - newT - cropH, l: newL, r: 100 - newL - cropW });
     }
     if (dragging) {
       const { idx, startX, startY, origX, origY, rect, moveFrac } = dragging;
@@ -672,22 +695,23 @@ function SpeciesPage({ sp, hue, onBack }) {
       cur[idx] = { ...cur[idx], x: Math.max(0, nx), y: Math.max(0, ny), w: Math.min(100, nw), h: Math.min(100, nh) };
       saveConfig({ ...configRef.current, positions: cur });
     }
-  }, [cropping, dragging, resizing, saveConfig]);
+  }, [cropping, cropDragging, dragging, resizing, saveConfig]);
 
   const onMouseUp = useCallback(() => {
     setDragging(null);
     setResizing(null);
     setCropping(null);
+    setCropDragging(null);
   }, []);
 
   // Attach global mouse listeners during drag/resize/crop
   useEffect(() => {
-    if (dragging || resizing || cropping) {
+    if (dragging || resizing || cropping || cropDragging) {
       window.addEventListener("mousemove", onMouseMove);
       window.addEventListener("mouseup", onMouseUp);
       return () => { window.removeEventListener("mousemove", onMouseMove); window.removeEventListener("mouseup", onMouseUp); };
     }
-  }, [dragging, resizing, cropping, onMouseMove, onMouseUp]);
+  }, [dragging, resizing, cropping, cropDragging, onMouseMove, onMouseUp]);
 
   if (!loaded) return null;
 
@@ -720,7 +744,7 @@ function SpeciesPage({ sp, hue, onBack }) {
       padding: "14px 16px 16px",
       overflow: "hidden",
       transition: "background .3s",
-      userSelect: (dragging || resizing || cropping) ? "none" : "auto",
+      userSelect: (dragging || resizing || cropping || cropDragging) ? "none" : "auto",
     }}>
       {/* Header */}
       <div style={{
@@ -955,7 +979,7 @@ function SpeciesPage({ sp, hue, onBack }) {
                 overflow: isCropMode ? "visible" : "hidden",
                 cursor: editing ? (cropMode ? "default" : "move") : "default",
                 outline: editing ? `1px dashed ${isCropMode ? `hsl(${hue}, 50%, 60%)` : `${mood.text}33`}` : "none",
-                zIndex: (dragging?.idx === i || cropping?.idx === p.id) ? 10 : (frontIdx === i ? 5 : 1),
+                zIndex: (dragging?.idx === i || cropping?.idx === p.id || cropDragging?.idx === p.id) ? 10 : (frontIdx === i ? 5 : 1),
               }}>
               <img src={p.full} alt={sp.is}
                 onLoad={e => { naturalDimsRef.current[p.id] = { w: e.target.naturalWidth, h: e.target.naturalHeight }; }}
@@ -972,8 +996,10 @@ function SpeciesPage({ sp, hue, onBack }) {
                 <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: `${crop.b}%`, background: "rgba(0,0,0,0.45)", pointerEvents: "none" }} />
                 <div style={{ position: "absolute", top: `${crop.t}%`, bottom: `${crop.b}%`, left: 0, width: `${crop.l}%`, background: "rgba(0,0,0,0.45)", pointerEvents: "none" }} />
                 <div style={{ position: "absolute", top: `${crop.t}%`, bottom: `${crop.b}%`, right: 0, width: `${crop.r}%`, background: "rgba(0,0,0,0.45)", pointerEvents: "none" }} />
-                {/* Crop rectangle border */}
-                <div style={{ position: "absolute", top: `${crop.t}%`, left: `${crop.l}%`, right: `${crop.r}%`, bottom: `${crop.b}%`, border: "1.5px dashed rgba(255,255,255,0.7)", pointerEvents: "none", zIndex: 3 }} />
+                {/* Crop rectangle — draggable to reposition within image */}
+                <div
+                  onMouseDown={e => { if (hasCrop) onCropDragDown(e, p.id); }}
+                  style={{ position: "absolute", top: `${crop.t}%`, left: `${crop.l}%`, right: `${crop.r}%`, bottom: `${crop.b}%`, border: "1.5px dashed rgba(255,255,255,0.7)", cursor: hasCrop ? (cropDragging ? "grabbing" : "grab") : "default", zIndex: 3 }} />
                 {/* Corner handles */}
                 {cropHandle(p.id, "tl", "nw-resize", { top: `${crop.t}%`, left: `${crop.l}%`, transform: "translate(-50%,-50%)" })}
                 {cropHandle(p.id, "tr", "ne-resize", { top: `${crop.t}%`, right: `${crop.r}%`, transform: "translate(50%,-50%)" })}
@@ -990,7 +1016,7 @@ function SpeciesPage({ sp, hue, onBack }) {
                   background: "rgba(0,0,0,0.5)", color: "#fff",
                   fontFamily: "'JetBrains Mono',monospace", fontSize: 8,
                   padding: "1px 8px", borderRadius: 8, whiteSpace: "nowrap", pointerEvents: "none",
-                }}>{hasCrop ? "double-click to reset to original" : "drag edges to crop"}</div>
+                }}>{hasCrop ? "drag to move · double-click to reset" : "drag edges to crop"}</div>
               </>}
               {/* Resize handles in edit mode (only in move mode) */}
               {editing && !cropMode && <>
