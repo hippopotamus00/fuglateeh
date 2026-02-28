@@ -1291,7 +1291,6 @@ function App() {
 
       <div key={animKey} style={{
         width: "100%", maxWidth: 1400,
-        flex: !isSpeciesLevel ? 1 : undefined,
         display: "flex", flexDirection: "column",
       }}>
         {/* Root pill — always shown */}
@@ -1360,19 +1359,18 @@ function App() {
 
         {/* Tree nodes for order/family levels — fills remaining space */}
         {!isSpeciesLevel && (() => {
-          const maxPerRow = Math.min(items.length, 5);
+          const maxPerRow = Math.min(items.length, 3);
           const itemRows = splitIntoRows(items, maxPerRow);
           const maxRowLen = Math.max(...itemRows.map(r => r.length));
           return (
           <div style={{
             display: "flex", flexDirection: "column",
             gap: 10, marginTop: 12,
-            flex: 1,
           }}>
             {itemRows.map((row, ri) => (
               <div key={ri} style={{
                 display: "flex", justifyContent: "center",
-                gap: 10, flex: 1,
+                gap: 10,
               }}>
             {row.map((p, i) => {
               const globalIdx = itemRows.slice(0, ri).reduce((a, r) => a + r.length, 0) + i;
@@ -1403,8 +1401,9 @@ function App() {
                   display: "flex", flexDirection: "column", justifyContent: "flex-end",
                   position: "relative", overflow: "hidden",
                   transition: "border-color .2s, box-shadow .2s",
-                  flex: "1 1 0", minWidth: minColW,
+                  flex: "1 1 0",
                   maxWidth: `calc((100% - ${(maxRowLen - 1) * 10}px) / ${maxRowLen})`,
+                  height: 220,
                 }}
                 onMouseEnter={e => { if (!hasPhoto) { e.currentTarget.style.borderColor = `hsl(${p.hue || hue}, 20%, 72%)`; e.currentTarget.style.boxShadow = "0 3px 16px rgba(0,0,0,0.06)"; } }}
                 onMouseLeave={e => { if (!hasPhoto) { e.currentTarget.style.borderColor = "#e2dfda"; e.currentTarget.style.boxShadow = "none"; } }}
