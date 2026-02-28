@@ -713,6 +713,14 @@ function SpeciesPage({ sp, hue, onBack }) {
     }
   }, [dragging, resizing, cropping, cropDragging, onMouseMove, onMouseUp]);
 
+  // Enter key in crop mode → accept crops and switch to move mode
+  useEffect(() => {
+    if (!editing || !cropMode) return;
+    const onKey = (e) => { if (e.key === "Enter") setCropMode(false); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [editing, cropMode]);
+
   if (!loaded) return null;
 
   const resizeHandle = (idx, corner, cursor, posStyle) => (
