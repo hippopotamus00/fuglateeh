@@ -1151,40 +1151,24 @@ function App() {
   const isSpeciesLevel = curFam !== null;
 
   // Tree items for order/family levels
-  let items = [], nodeW = 164, nodeH = 54, cols = 4;
+  let items = [], minColW = 200;
   if (orderIdx === null) {
     items = TAXONOMY.map((o, i) => ({
       key: o.order, label: o.orderCommon, sub: o.order,
       count: o.families.reduce((s, f) => s + f.species.length, 0),
       hue: ORDER_HUE[o.order] || 0, idx: i,
     }));
-    nodeW = 164; nodeH = 54; cols = 4;
+    minColW = 220;
   } else if (!isSpeciesLevel) {
     items = curOrder.families.map((f, i) => ({
       key: f.family, label: f.familyCommon, sub: f.family,
       count: f.species.length, hue, idx: i,
     }));
-    nodeW = 185; nodeH = 50; cols = Math.min(items.length, 3);
+    minColW = 240;
   }
 
-  // SVG layout for tree levels
-  const ROOT_W = curFam ? 220 : curOrder ? 210 : 170;
-  const ROOT_H = 44, ROOT_Y = 8, GAP_Y = 56;
-  const CHILD_Y = ROOT_Y + ROOT_H + GAP_Y;
-  const gap = 14;
-
-  const rows = !isSpeciesLevel ? Math.ceil(items.length / cols) : 0;
-  const gridW = cols * nodeW + (cols - 1) * gap;
-  const svgW = Math.max(520, gridW + 80);
-  const svgH = !isSpeciesLevel ? CHILD_Y + rows * (nodeH + gap + 16) + 30 : ROOT_H + 28;
-  const rootX = svgW / 2;
-  const gridLeft = (svgW - gridW) / 2;
-
-  const positioned = !isSpeciesLevel ? items.map((it, i) => {
-    const c = i % cols;
-    const r = Math.floor(i / cols);
-    return { ...it, x: gridLeft + c * (nodeW + gap) + nodeW / 2, y: CHILD_Y + r * (nodeH + gap + 16) };
-  }) : [];
+  // Grid column sizing: use auto-fill so boxes adapt to screen width
+  const gridColTemplate = `repeat(auto-fill, minmax(${minColW}px, 1fr))`;
 
   // If a species is selected, show full-page species view
   if (selectedSp) {
@@ -1195,7 +1179,7 @@ function App() {
     <div style={{
       height: "100vh", background: "#f8f7f4",
       display: "flex", flexDirection: "column", alignItems: "center",
-      padding: "14px 16px 24px",
+      padding: "14px clamp(16px, 3vw, 48px) 24px",
       overflow: "auto",
     }}>
       <style>{`
@@ -1219,7 +1203,7 @@ function App() {
       }}>⬇ Export</button>
 
       {/* Header */}
-      <div style={{ width: "100%", maxWidth: 900, marginBottom: 4, textAlign: "center" }}>
+      <div style={{ width: "100%", maxWidth: 1400, marginBottom: 4, textAlign: "center" }}>
         <h1 style={{ fontFamily: "'Playfair Display',Georgia,serif",
           fontSize: 22, fontWeight: 600, margin: "0 0 3px", color: "#1a1a1a" }}>
           fuglateeh
@@ -1229,7 +1213,7 @@ function App() {
       </div>
 
       {/* Breadcrumb + filters */}
-      <div style={{ width: "100%", maxWidth: 900, marginTop: 6,
+      <div style={{ width: "100%", maxWidth: 1400, marginTop: 6,
         display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
         <Breadcrumb path={crumbs} onNav={goTo} />
         {isSpeciesLevel && (
@@ -1249,7 +1233,7 @@ function App() {
       </div>
 
       <div key={animKey} style={{
-        width: "100%", maxWidth: 900,
+        width: "100%", maxWidth: 1400,
         flex: !isSpeciesLevel ? 1 : undefined,
         display: "flex", flexDirection: "column",
       }}>
@@ -1321,7 +1305,7 @@ function App() {
         {!isSpeciesLevel && (
           <div style={{
             display: "grid",
-            gridTemplateColumns: `repeat(${cols}, 1fr)`,
+            gridTemplateColumns: gridColTemplate,
             gridAutoRows: "1fr",
             gap: 10, marginTop: 12,
             flex: 1,
@@ -1450,7 +1434,7 @@ function App() {
         {isSpeciesLevel && (() => {
           const totalSp = genusGroups.reduce((s, g) => s + g.species.length, 0);
           // Scale card size: fewer species = bigger cards
-          const CARD_W = totalSp <= 2 ? 280 : totalSp <= 4 ? 240 : totalSp <= 8 ? 210 : totalSp <= 15 ? 185 : 160;
+          const CARD_MIN = totalSp <= 2 ? 260 : totalSp <= 4 ? 220 : totalSp <= 8 ? 190 : totalSp <= 15 ? 170 : 150;
           return (
           <div style={{
             marginTop: 20,
@@ -1458,16 +1442,8 @@ function App() {
             alignItems: "flex-start", justifyContent: "center",
           }}>
             {genusGroups.map((g, gi) => {
-              const count = g.species.length;
-              // Balanced rows: find the most even split (max 5 per row)
-              let perRow;
-              if (count <= 5) perRow = count;
-              else if (count % 4 === 0) perRow = 4;
-              else if (count % 3 === 0) perRow = 3;
-              else if (count % 5 === 0) perRow = 5;
-              else if (count <= 8) perRow = Math.ceil(count / 2);
-              else perRow = Math.ceil(count / Math.ceil(count / 4));
-              const innerW = perRow * CARD_W;
+              // Groups with many species span full width; smaller ones share a row
+              const groupBasis = g.species.length > 3 ? "100%" : `${g.species.length * (CARD_MIN + 4)}px`;
               return (
                 <div key={g.genus} className="sp-card"
                   style={{
@@ -1475,8 +1451,9 @@ function App() {
                     border: `1px solid hsl(${hue}, 12%, 85%)`,
                     borderRadius: 10, overflow: "hidden",
                     background: "#fff",
-                    flex: "0 0 auto",
-                    width: innerW + 2,
+                    flex: `1 1 ${groupBasis}`,
+                    minWidth: Math.min(CARD_MIN + 2, 200),
+                    maxWidth: "100%",
                   }}>
                   {/* Genus header */}
                   <div style={{
@@ -1492,9 +1469,10 @@ function App() {
                     }}>{g.genus}</span>
                   </div>
 
-                  {/* Species cards — flex wrap */}
+                  {/* Species cards — responsive grid */}
                   <div style={{
-                    display: "flex", flexWrap: "wrap",
+                    display: "grid",
+                    gridTemplateColumns: `repeat(auto-fill, minmax(${CARD_MIN}px, 1fr))`,
                   }}>
                     {g.species.map((sp, si) => {
                       const bg1 = `hsl(${hue}, 18%, 88%)`;
@@ -1531,8 +1509,7 @@ function App() {
                             padding: 0, cursor: editingSpecies && hasPhoto ? (isDraggingSp ? "grabbing" : "grab") : "pointer",
                             textAlign: "left",
                             display: "block",
-                            width: CARD_W,
-                            flexShrink: 0,
+                            width: "100%",
                             position: "relative",
                             overflow: "hidden",
                           }}
