@@ -222,7 +222,7 @@ const TAXONOMY_ICELAND = [
     ],
   },
   {
-    order: "Pelecaniformes", orderCommon: "Hegrafuglar",
+    order: "Pelecaniformes", orderCommon: "Hegrar",
     families: [{ family: "Ardeidae", familyCommon: "Hegrar", species: [
       { common: "Gray Heron", sci: "Ardea cinerea", is: "Gráhegri", tags: ["portrait"], visitor: true },
     ]}],
