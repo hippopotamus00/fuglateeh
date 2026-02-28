@@ -1419,7 +1419,6 @@ function App() {
               const nodePhoto = nodeCfg?.photo || null;
               const nodePos = nodeCfg?.objectPos || { x: 50, y: 50 };
               const nodeMirrored = !!nodeCfg?.mirrored;
-              const nodeZoom = nodeCfg?.zoom || 1;
               const activeDrag = isOrderLevel ? ordDragging : famDragging;
               const isDrag = isOrderLevel ? (ordDragging?.orderKey === p.key) : (famDragging?.familyKey === p.key);
               const dragPos = isDrag ? { x: activeDrag.curX, y: activeDrag.curY } : nodePos;
@@ -1439,17 +1438,6 @@ function App() {
                   flex: "1 1 0",
                   maxWidth: `calc((100% - ${(maxRowLen - 1) * 10}px) / ${maxRowLen})`,
                   height: 220,
-                }}
-                onWheel={e => {
-                  if (!isEditing || !hasPhoto) return;
-                  e.preventDefault();
-                  const delta = e.deltaY > 0 ? -0.05 : 0.05;
-                  const newZoom = Math.round(Math.max(1, Math.min(3, nodeZoom + delta)) * 100) / 100;
-                  try {
-                    const existing = JSON.parse(localStorage.getItem(storageKey)) || {};
-                    localStorage.setItem(storageKey, JSON.stringify({ ...existing, zoom: newZoom }));
-                    setAnimKey(k => k + 1);
-                  } catch(e) {}
                 }}
                 onMouseEnter={e => { if (!hasPhoto) { e.currentTarget.style.borderColor = `hsl(${p.hue || hue}, 20%, 72%)`; e.currentTarget.style.boxShadow = "0 3px 16px rgba(0,0,0,0.06)"; } }}
                 onMouseLeave={e => { if (!hasPhoto) { e.currentTarget.style.borderColor = "#e2dfda"; e.currentTarget.style.boxShadow = "none"; } }}
@@ -1495,7 +1483,7 @@ function App() {
                   <img src={nodePhoto} alt="" style={{
                     position: "absolute", inset: 0, width: "100%", height: "100%",
                     objectFit: "cover", objectPosition: `${dragPos.x}% ${dragPos.y}%`,
-                    transform: `scale(${nodeZoom})${nodeMirrored ? " scaleX(-1)" : ""}`,
+                    transform: nodeMirrored ? "scaleX(-1)" : "none",
                     pointerEvents: "none",
                   }} />
                 )}
@@ -1635,7 +1623,6 @@ function App() {
                       let thumb = photos.length > 0 ? photos[0].thumb : null;
                       let posterPos = { x: 50, y: 50 };
                       let spMirrored = false;
-                      let spZoom = 1;
                       try {
                         const raw = localStorage.getItem(`sp:${spKey}`);
                         if (raw) {
@@ -1650,7 +1637,6 @@ function App() {
                           }
                           if (cfg.posterPos) posterPos = cfg.posterPos;
                           if (cfg.posterMirrored) spMirrored = true;
-                          if (cfg.posterZoom) spZoom = cfg.posterZoom;
                         }
                       } catch(e) {}
                       const hasPhoto = !!thumb;
@@ -1678,17 +1664,6 @@ function App() {
                             transition: "border-color .2s, box-shadow .2s",
                             minHeight: 0,
                           }}
-                          onWheel={e => {
-                            if (!editingSpecies || !hasPhoto) return;
-                            e.preventDefault();
-                            const delta = e.deltaY > 0 ? -0.05 : 0.05;
-                            const newZoom = Math.round(Math.max(1, Math.min(3, spZoom + delta)) * 100) / 100;
-                            try {
-                              const existing = JSON.parse(localStorage.getItem(`sp:${spKey}`)) || {};
-                              localStorage.setItem(`sp:${spKey}`, JSON.stringify({ ...existing, posterZoom: newZoom }));
-                              setAnimKey(k => k + 1);
-                            } catch(e) {}
-                          }}
                           onMouseDown={e => {
                             if (editingSpecies && hasPhoto) {
                               e.preventDefault();
@@ -1709,7 +1684,7 @@ function App() {
                               position: "absolute", inset: 0, width: "100%", height: "100%",
                               objectFit: "cover",
                               objectPosition: `${dragPos.x}% ${dragPos.y}%`,
-                              transform: `scale(${spZoom})${spMirrored ? " scaleX(-1)" : ""}`,
+                              transform: spMirrored ? "scaleX(-1)" : "none",
                               pointerEvents: "none",
                             }} />
                           )}
