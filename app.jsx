@@ -275,6 +275,28 @@ const MOODS = [
   { key: "sand", label: "Sand", bg: "#e8dfd0", text: "#3a3028" },
 ];
 
+/* ── Balanced row distribution ─────────────────────────────── */
+function balancedRowSizes(n, maxPerRow) {
+  if (n === 0) return [];
+  if (n <= maxPerRow) return [n];
+  const numRows = Math.ceil(n / maxPerRow);
+  const base = Math.floor(n / numRows);
+  const extra = n % numRows;
+  // Larger rows first, smaller rows last — so centering looks natural
+  return Array.from({ length: numRows }, (_, r) => r < extra ? base + 1 : base);
+}
+
+function splitIntoRows(items, maxPerRow) {
+  const sizes = balancedRowSizes(items.length, maxPerRow);
+  const rows = [];
+  let idx = 0;
+  for (const size of sizes) {
+    rows.push(items.slice(idx, idx + size));
+    idx += size;
+  }
+  return rows;
+}
+
 /* ── Default auto-layouts (% based) ───────────────────────── */
 function autoLayout(n) {
   if (n === 1) return [{ x: 5, y: 2, w: 90, h: 96 }];
@@ -1300,14 +1322,23 @@ function App() {
         </div>
 
         {/* Tree nodes for order/family levels — fills remaining space */}
-        {!isSpeciesLevel && (
+        {!isSpeciesLevel && (() => {
+          const maxPerRow = Math.min(items.length, 5);
+          const itemRows = splitIntoRows(items, maxPerRow);
+          const maxRowLen = itemRows[0].length;
+          return (
           <div style={{
-            display: "flex", flexWrap: "wrap",
-            justifyContent: "center", alignContent: "stretch",
+            display: "flex", flexDirection: "column",
             gap: 10, marginTop: 12,
             flex: 1,
           }}>
-            {items.map((p, i) => {
+            {itemRows.map((row, ri) => (
+              <div key={ri} style={{
+                display: "flex", justifyContent: "center",
+                gap: 10, flex: 1,
+              }}>
+            {row.map((p, i) => {
+              const globalIdx = itemRows.slice(0, ri).reduce((a, r) => a + r.length, 0) + i;
               // Load photo config for this node (order or family level)
               const isOrderLevel = orderIdx === null;
               const storageKey = isOrderLevel ? `ord:${p.key}` : `fam:${p.key}`;
@@ -1326,7 +1357,7 @@ function App() {
               return (
               <button key={p.key} className="tree-node"
                 style={{
-                  animationDelay: `${0.06 + i * 0.035}s`,
+                  animationDelay: `${0.06 + globalIdx * 0.035}s`,
                   background: hasPhoto ? "#000" : "#fff",
                   border: hasPhoto ? "none" : "1px solid #e2dfda",
                   borderRadius: 12, padding: 0,
@@ -1335,7 +1366,8 @@ function App() {
                   display: "flex", flexDirection: "column", justifyContent: "flex-end",
                   position: "relative", overflow: "hidden",
                   transition: "border-color .2s, box-shadow .2s",
-                  width: minColW, flex: "0 0 auto",
+                  flex: "1 1 0", minWidth: minColW,
+                  maxWidth: `calc((100% - ${(maxRowLen - 1) * 10}px) / ${maxRowLen})`,
                 }}
                 onMouseEnter={e => { if (!hasPhoto) { e.currentTarget.style.borderColor = `hsl(${p.hue || hue}, 20%, 72%)`; e.currentTarget.style.boxShadow = "0 3px 16px rgba(0,0,0,0.06)"; } }}
                 onMouseLeave={e => { if (!hasPhoto) { e.currentTarget.style.borderColor = "#e2dfda"; e.currentTarget.style.boxShadow = "none"; } }}
@@ -1424,8 +1456,11 @@ function App() {
               </button>
               );
             })}
+              </div>
+            ))}
           </div>
-        )}
+          );
+        })()}
 
         {/* Species view — genus groups flow inline, shrink-wrapped */}
         {isSpeciesLevel && (() => {
@@ -1439,16 +1474,10 @@ function App() {
             alignItems: "flex-start", justifyContent: "center",
           }}>
             {genusGroups.map((g, gi) => {
-              const count = g.species.length;
-              // Balanced rows: find the most even split (max 5 per row)
-              let perRow;
-              if (count <= 5) perRow = count;
-              else if (count % 4 === 0) perRow = 4;
-              else if (count % 3 === 0) perRow = 3;
-              else if (count % 5 === 0) perRow = 5;
-              else if (count <= 8) perRow = Math.ceil(count / 2);
-              else perRow = Math.ceil(count / Math.ceil(count / 4));
-              const innerW = perRow * CARD_MIN;
+              const maxPerRow = Math.min(g.species.length, 5);
+              const spRows = splitIntoRows(g.species, maxPerRow);
+              const maxRowLen = spRows[0].length;
+              const innerW = maxRowLen * CARD_MIN;
               return (
                 <div key={g.genus} className="sp-card"
                   style={{
@@ -1474,11 +1503,11 @@ function App() {
                     }}>{g.genus}</span>
                   </div>
 
-                  {/* Species cards — flex wrap */}
-                  <div style={{
-                    display: "flex", flexWrap: "wrap",
-                  }}>
-                    {g.species.map((sp, si) => {
+                  {/* Species cards — balanced rows */}
+                  <div style={{ display: "flex", flexDirection: "column" }}>
+                  {spRows.map((row, ri) => (
+                    <div key={ri} style={{ display: "flex", justifyContent: "center" }}>
+                    {row.map((sp, si) => {
                       const bg1 = `hsl(${hue}, 18%, 88%)`;
                       const bg2 = `hsl(${(hue + 25) % 360}, 12%, 82%)`;
                       const photos = PHOTOS[sp.sci] || [];
@@ -1583,6 +1612,8 @@ function App() {
                         </button>
                       );
                     })}
+                    </div>
+                  ))}
                   </div>
                 </div>
               );
