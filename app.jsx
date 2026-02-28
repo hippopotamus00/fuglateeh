@@ -1743,13 +1743,14 @@ function App() {
                       {p.label}
                     </div>
                   </div>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", paddingLeft: 20 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", paddingLeft: 20, gap: 8 }}>
                     <div style={{ fontFamily: "'JetBrains Mono',monospace",
-                      fontSize: 9.5, color: hasPhoto ? "rgba(255,255,255,0.6)" : "#bbb", fontStyle: "italic" }}>
+                      fontSize: 9.5, color: hasPhoto ? "rgba(255,255,255,0.6)" : "#bbb", fontStyle: "italic",
+                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {p.sub}
                     </div>
                     <div style={{ fontFamily: "'JetBrains Mono',monospace",
-                      fontSize: 9.5, color: hasPhoto ? "rgba(255,255,255,0.5)" : "#d0cbc3" }}>{p.count} sp.</div>
+                      fontSize: 9.5, color: hasPhoto ? "rgba(255,255,255,0.5)" : "#d0cbc3", flexShrink: 0 }}>{p.count} sp.</div>
                   </div>
                 </div>
                 {/* Edit mode indicator */}
