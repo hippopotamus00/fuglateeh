@@ -297,6 +297,43 @@ function splitIntoRows(items, maxPerRow) {
   return rows;
 }
 
+// Pack variable-weight groups into rows balanced by total species count.
+// Preserves group order. Tries multiple row counts, picks most balanced.
+function packBySpeciesCount(groups) {
+  if (groups.length <= 1) return groups.length ? [groups] : [];
+  const weights = groups.map(g => g.species.length);
+  const totalW = weights.reduce((a, b) => a + b, 0);
+  const minRows = groups.length <= 3 ? 1 : 2;
+  const maxRows = Math.min(groups.length, 5);
+
+  let bestPack = [groups];
+  let bestImbalance = Infinity;
+
+  for (let numRows = minRows; numRows <= maxRows; numRows++) {
+    const target = totalW / numRows;
+    const rows = [];
+    let cur = [], curW = 0;
+    for (let i = 0; i < groups.length; i++) {
+      cur.push(groups[i]);
+      curW += weights[i];
+      const remaining = groups.length - i - 1;
+      const rowsLeft = numRows - rows.length - 1;
+      if (rowsLeft > 0 && remaining > 0 && curW >= target) {
+        rows.push(cur);
+        cur = []; curW = 0;
+      }
+    }
+    if (cur.length) rows.push(cur);
+    const rw = rows.map(r => r.reduce((s, g) => s + g.species.length, 0));
+    const imb = Math.max(...rw) - Math.min(...rw);
+    if (imb < bestImbalance || (imb === bestImbalance && rows.length > bestPack.length)) {
+      bestImbalance = imb;
+      bestPack = rows;
+    }
+  }
+  return bestPack;
+}
+
 /* ── Default auto-layouts (% based) ───────────────────────── */
 function autoLayout(n) {
   if (n === 1) return [{ x: 5, y: 2, w: 90, h: 96 }];
@@ -1467,8 +1504,7 @@ function App() {
           const totalSp = genusGroups.reduce((s, g) => s + g.species.length, 0);
           // Scale card size: fewer species = bigger cards
           const CARD_MIN = totalSp <= 2 ? 260 : totalSp <= 4 ? 220 : totalSp <= 8 ? 190 : totalSp <= 15 ? 170 : 150;
-          const genusMaxPerRow = Math.min(genusGroups.length, 4);
-          const genusRows = splitIntoRows(genusGroups, genusMaxPerRow);
+          const genusRows = packBySpeciesCount(genusGroups);
           return (
           <div style={{
             marginTop: 20,
@@ -1483,8 +1519,9 @@ function App() {
             }}>
             {gRow.map((g, gIdx) => {
               const gi = rowOffset + gIdx;
-              const maxPerRow = Math.min(g.species.length, 5);
-              const spRows = splitIntoRows(g.species, maxPerRow);
+              // Compact layout: ceil(sqrt(n)) columns, so genus boxes are squarish
+              const spColCount = Math.min(Math.ceil(Math.sqrt(g.species.length)), 4);
+              const spRows = splitIntoRows(g.species, spColCount);
               const maxRowLen = Math.max(...spRows.map(r => r.length));
               const innerW = maxRowLen * CARD_MIN;
               return (
