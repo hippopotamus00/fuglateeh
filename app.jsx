@@ -1605,7 +1605,7 @@ function App() {
                     animationDelay: `${0.06 + gIdx * 0.05}s`,
                     gridColumn: `span ${span.c}`,
                     gridRow: `span ${span.r}`,
-                    border: `1px solid hsl(${hue}, 15%, 82%)`,
+                    border: `2px solid hsl(${hue}, 20%, 72%)`,
                     borderRadius: 10,
                     background: `hsl(${hue}, 10%, 96%)`,
                     display: "flex", flexDirection: "column",
