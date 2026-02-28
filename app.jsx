@@ -1461,32 +1461,74 @@ function App() {
           );
         })()}
 
-        {/* Species view — same card style as order/family, 3 per row */}
+        {/* Species view — genus-grouped puzzle/mosaic layout, 4 columns */}
         {isSpeciesLevel && (() => {
-          // Flatten all species with genus labels
-          const allSpecies = [];
-          genusGroups.forEach(g => {
-            g.species.forEach(sp => allSpecies.push({ ...sp, genus: g.genus }));
-          });
-          const spMaxPerRow = Math.min(allSpecies.length, 3);
-          const spItemRows = splitIntoRows(allSpecies, spMaxPerRow);
-          const spMaxRowLen = Math.max(...spItemRows.map(r => r.length));
+          // Determine grid span for each genus group
+          const genusSpan = (n) => {
+            if (n <= 1) return { c: 1, r: 1 };
+            if (n === 2) return { c: 1, r: 2 };
+            if (n === 3) return { c: 3, r: 1 };
+            if (n === 4) return { c: 2, r: 2 };
+            if (n <= 6) return { c: 3, r: 2 };
+            if (n <= 8) return { c: 4, r: 2 };
+            if (n <= 12) return { c: 4, r: 3 };
+            return { c: 4, r: Math.ceil(n / 4) };
+          };
+          // Inner grid columns for species within a genus
+          const innerCols = (n, spanC) => {
+            if (n === 2 && spanC === 1) return 1; // stacked
+            if (n === 3 && spanC === 3) return 3;
+            if (n === 4 && spanC === 2) return 2;
+            return Math.min(n, spanC);
+          };
           let globalSpIdx = 0;
           return (
           <div style={{
-            display: "flex", flexDirection: "column",
-            gap: 10, marginTop: 12,
+            display: "grid",
+            gridTemplateColumns: "repeat(4, 1fr)",
+            gridAutoRows: 160,
+            gridAutoFlow: "dense",
+            gap: 8,
+            marginTop: 12,
           }}>
-            {spItemRows.map((row, ri) => (
-              <div key={ri} style={{
-                display: "flex", justifyContent: "center",
-                gap: 10,
-              }}>
-                    {row.map((sp, si) => {
+            {genusGroups.map((g, gIdx) => {
+              const n = g.species.length;
+              const span = genusSpan(n);
+              const cols = innerCols(n, span.c);
+              return (
+                <div key={g.genus} className="sp-card"
+                  style={{
+                    animationDelay: `${0.06 + gIdx * 0.05}s`,
+                    gridColumn: `span ${span.c}`,
+                    gridRow: `span ${span.r}`,
+                    border: `1px solid hsl(${hue}, 15%, 82%)`,
+                    borderRadius: 10,
+                    background: `hsl(${hue}, 10%, 96%)`,
+                    display: "flex", flexDirection: "column",
+                    overflow: "hidden",
+                  }}>
+                  {/* Genus header */}
+                  <div style={{
+                    padding: "5px 10px",
+                    fontFamily: "'JetBrains Mono',monospace",
+                    fontSize: 9.5, fontStyle: "italic",
+                    color: `hsl(${hue}, 18%, 50%)`,
+                    background: `hsl(${hue}, 12%, 92%)`,
+                    borderBottom: `1px solid hsl(${hue}, 15%, 86%)`,
+                    flexShrink: 0,
+                  }}>{g.genus} · {n} sp.</div>
+                  {/* Species cards grid */}
+                  <div style={{
+                    flex: 1,
+                    display: "grid",
+                    gridTemplateColumns: `repeat(${cols}, 1fr)`,
+                    gap: 4,
+                    padding: 4,
+                  }}>
+                    {g.species.map((sp, si) => {
                       const spIdx = globalSpIdx++;
                       const photos = PHOTOS[sp.sci] || [];
                       const spKey = sp.sci.replace(/ /g, "_");
-                      // Check for saved poster preference + position
                       let thumb = photos.length > 0 ? photos[0].thumb : null;
                       let posterPos = { x: 50, y: 50 };
                       try {
@@ -1509,21 +1551,16 @@ function App() {
                       const dragPos = isDraggingSp ? { x: spDragging.curX, y: spDragging.curY } : posterPos;
                       return (
                         <button key={sp.sci}
-                          className="sp-card"
                           style={{
-                            animationDelay: `${0.06 + spIdx * 0.035}s`,
                             background: hasPhoto ? "#000" : "#fff",
                             border: hasPhoto ? "none" : "1px solid #e2dfda",
-                            borderRadius: 12, padding: 0,
+                            borderRadius: 8, padding: 0,
                             cursor: editingSpecies && hasPhoto ? (isDraggingSp ? "grabbing" : "grab") : "pointer",
                             textAlign: "left",
                             display: "flex", flexDirection: "column", justifyContent: "flex-end",
-                            flex: "1 1 0",
-                            maxWidth: `calc((100% - ${(spMaxRowLen - 1) * 10}px) / ${spMaxRowLen})`,
-                            height: 220,
-                            position: "relative",
-                            overflow: "hidden",
+                            position: "relative", overflow: "hidden",
                             transition: "border-color .2s, box-shadow .2s",
+                            minHeight: 0,
                           }}
                           onMouseDown={e => {
                             if (editingSpecies && hasPhoto) {
@@ -1540,7 +1577,6 @@ function App() {
                               setSelectedSp(sp);
                             }
                           }}>
-                          {/* Photo background */}
                           {hasPhoto && (
                             <img src={thumb} alt={sp.is} style={{
                               position: "absolute", inset: 0, width: "100%", height: "100%",
@@ -1549,42 +1585,39 @@ function App() {
                               pointerEvents: "none",
                             }} />
                           )}
-                          {/* Edit mode indicator */}
                           {editingSpecies && (
                             <div style={{
-                              position: "absolute", top: 6, right: 6, zIndex: 2,
-                              background: "rgba(0,0,0,0.4)", borderRadius: 8,
-                              padding: "2px 8px", fontFamily: "'JetBrains Mono',monospace",
+                              position: "absolute", top: 4, right: 4, zIndex: 2,
+                              background: "rgba(0,0,0,0.4)", borderRadius: 6,
+                              padding: "2px 6px", fontFamily: "'JetBrains Mono',monospace",
                               fontSize: 7, color: "#fff",
-                            }}>{hasPhoto ? "drag · click" : "click to pick"}</div>
+                            }}>{hasPhoto ? "drag · click" : "click"}</div>
                           )}
-                          {/* Text content */}
                           <div style={{
-                            position: "relative", zIndex: 1, padding: "16px 18px",
+                            position: "relative", zIndex: 1, padding: "8px 10px",
                             background: hasPhoto ? "linear-gradient(transparent, rgba(0,0,0,0.65))" : "none",
-                            display: "flex", flexDirection: "column", justifyContent: "flex-end", gap: 6,
+                            display: "flex", flexDirection: "column", justifyContent: "flex-end", gap: 2,
                             flex: 1,
                           }}>
                             <div style={{
                               fontFamily: "'Playfair Display',Georgia,serif",
-                              fontSize: 18, fontWeight: 500,
+                              fontSize: 14, fontWeight: 500,
                               color: hasPhoto ? "#fff" : "#2a2a2a",
                               textShadow: hasPhoto ? "0 1px 3px rgba(0,0,0,0.5)" : "none",
                             }}>{sp.is}</div>
-                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", paddingLeft: 0 }}>
-                              <div style={{ fontFamily: "'JetBrains Mono',monospace",
-                                fontSize: 9.5, color: hasPhoto ? "rgba(255,255,255,0.6)" : "#bbb", fontStyle: "italic" }}>
-                                {sp.common}
-                              </div>
-                              <div style={{ fontFamily: "'JetBrains Mono',monospace",
-                                fontSize: 9.5, color: hasPhoto ? "rgba(255,255,255,0.5)" : "#d0cbc3" }}>{sp.genus}</div>
-                            </div>
+                            <div style={{
+                              fontFamily: "'JetBrains Mono',monospace",
+                              fontSize: 8.5, color: hasPhoto ? "rgba(255,255,255,0.6)" : "#bbb",
+                              fontStyle: "italic",
+                            }}>{sp.common}</div>
                           </div>
                         </button>
                       );
                     })}
-              </div>
-            ))}
+                  </div>
+                </div>
+              );
+            })}
           </div>
           );
         })()}
