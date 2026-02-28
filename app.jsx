@@ -1745,6 +1745,11 @@ function App() {
                               fontSize: 8.5, color: hasPhoto ? "rgba(255,255,255,0.6)" : "#bbb",
                               fontStyle: "italic",
                             }}>{sp.common}</div>
+                            <div style={{
+                              fontFamily: "'JetBrains Mono',monospace",
+                              fontSize: 7.5, color: hasPhoto ? "rgba(255,255,255,0.4)" : "#ccc",
+                              fontStyle: "italic",
+                            }}>{sp.sci}</div>
                           </div>
                         </button>
                       );
