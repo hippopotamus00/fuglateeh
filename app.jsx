@@ -887,8 +887,8 @@ function SpeciesPage({ sp, hue, onBack, allPhotos, region }) {
         if (corner.includes("l")) { nw = Math.max(10, origW - dx); nx = origX + (origW - nw); }
         if (corner.includes("b")) nh = Math.max(8, origH + dy);
         if (corner.includes("t")) { nh = Math.max(8, origH - dy); ny = origY + (origH - nh); }
-        // Lock aspect ratio for cropped images — same shape = same crop
-        if (origCrop) {
+        // Always lock aspect ratio in move mode — crop only changes in crop mode
+        {
           const ar = origW / origH;
           if (corner.length === 2) {
             if (Math.abs(nw - origW) / origW >= Math.abs(nh - origH) / origH) {
