@@ -297,43 +297,6 @@ function splitIntoRows(items, maxPerRow) {
   return rows;
 }
 
-// Pack variable-weight groups into rows balanced by total species count.
-// Preserves group order. Tries multiple row counts, picks most balanced.
-function packBySpeciesCount(groups) {
-  if (groups.length <= 1) return groups.length ? [groups] : [];
-  const weights = groups.map(g => g.species.length);
-  const totalW = weights.reduce((a, b) => a + b, 0);
-  const minRows = groups.length <= 3 ? 1 : 2;
-  const maxRows = Math.min(groups.length, 5);
-
-  let bestPack = [groups];
-  let bestImbalance = Infinity;
-
-  for (let numRows = minRows; numRows <= maxRows; numRows++) {
-    const target = totalW / numRows;
-    const rows = [];
-    let cur = [], curW = 0;
-    for (let i = 0; i < groups.length; i++) {
-      cur.push(groups[i]);
-      curW += weights[i];
-      const remaining = groups.length - i - 1;
-      const rowsLeft = numRows - rows.length - 1;
-      if (rowsLeft > 0 && remaining > 0 && curW >= target) {
-        rows.push(cur);
-        cur = []; curW = 0;
-      }
-    }
-    if (cur.length) rows.push(cur);
-    const rw = rows.map(r => r.reduce((s, g) => s + g.species.length, 0));
-    const imb = Math.max(...rw) - Math.min(...rw);
-    if (imb < bestImbalance || (imb === bestImbalance && rows.length > bestPack.length)) {
-      bestImbalance = imb;
-      bestPack = rows;
-    }
-  }
-  return bestPack;
-}
-
 /* ── Default auto-layouts (% based) ───────────────────────── */
 function autoLayout(n) {
   if (n === 1) return [{ x: 5, y: 2, w: 90, h: 96 }];
@@ -1498,63 +1461,29 @@ function App() {
           );
         })()}
 
-        {/* Species view — genus groups flow inline, shrink-wrapped */}
+        {/* Species view — same card style as order/family, 3 per row */}
         {isSpeciesLevel && (() => {
-          const totalSp = genusGroups.reduce((s, g) => s + g.species.length, 0);
-          // Scale card size: fewer species = bigger cards
-          const CARD_MIN = totalSp <= 2 ? 260 : totalSp <= 4 ? 220 : totalSp <= 8 ? 190 : totalSp <= 15 ? 170 : 150;
-          const genusRows = packBySpeciesCount(genusGroups);
+          // Flatten all species with genus labels
+          const allSpecies = [];
+          genusGroups.forEach(g => {
+            g.species.forEach(sp => allSpecies.push({ ...sp, genus: g.genus }));
+          });
+          const spMaxPerRow = Math.min(allSpecies.length, 3);
+          const spItemRows = splitIntoRows(allSpecies, spMaxPerRow);
+          const spMaxRowLen = Math.max(...spItemRows.map(r => r.length));
+          let globalSpIdx = 0;
           return (
           <div style={{
-            marginTop: 20,
-            display: "flex", flexDirection: "column", gap: 12,
+            display: "flex", flexDirection: "column",
+            gap: 10, marginTop: 12,
           }}>
-            {genusRows.map((gRow, gri) => {
-            const rowOffset = genusRows.slice(0, gri).reduce((a, r) => a + r.length, 0);
-            return (
-            <div key={gri} style={{
-              display: "flex", flexWrap: "wrap", gap: 12,
-              justifyContent: "center", alignItems: "flex-start",
-            }}>
-            {gRow.map((g, gIdx) => {
-              const gi = rowOffset + gIdx;
-              // Compact layout: ceil(sqrt(n)) columns, so genus boxes are squarish
-              const spColCount = Math.min(Math.ceil(Math.sqrt(g.species.length)), 4);
-              const spRows = splitIntoRows(g.species, spColCount);
-              const maxRowLen = Math.max(...spRows.map(r => r.length));
-              const innerW = maxRowLen * CARD_MIN;
-              return (
-                <div key={g.genus} className="sp-card"
-                  style={{
-                    animationDelay: `${0.04 + gi * 0.05}s`,
-                    border: `1px solid hsl(${hue}, 12%, 85%)`,
-                    borderRadius: 10, overflow: "hidden",
-                    background: "#fff",
-                    flex: "0 0 auto",
-                    width: innerW + 2,
-                    maxWidth: "100%",
-                  }}>
-                  {/* Genus header */}
-                  <div style={{
-                    padding: "4px 12px",
-                    background: `hsl(${hue}, 14%, 96%)`,
-                    borderBottom: `1px solid hsl(${hue}, 12%, 90%)`,
-                    display: "flex", alignItems: "baseline", justifyContent: "center", gap: 6,
-                  }}>
-                    <span style={{
-                      fontFamily: "'Playfair Display',Georgia,serif",
-                      fontSize: 11, fontWeight: 500, fontStyle: "italic",
-                      color: `hsl(${hue}, 20%, 38%)`,
-                    }}>{g.genus}</span>
-                  </div>
-
-                  {/* Species cards — balanced rows */}
-                  <div style={{ display: "flex", flexDirection: "column" }}>
-                  {spRows.map((row, ri) => (
-                    <div key={ri} style={{ display: "flex", justifyContent: "center" }}>
+            {spItemRows.map((row, ri) => (
+              <div key={ri} style={{
+                display: "flex", justifyContent: "center",
+                gap: 10,
+              }}>
                     {row.map((sp, si) => {
-                      const bg1 = `hsl(${hue}, 18%, 88%)`;
-                      const bg2 = `hsl(${(hue + 25) % 360}, 12%, 82%)`;
+                      const spIdx = globalSpIdx++;
                       const photos = PHOTOS[sp.sci] || [];
                       const spKey = sp.sci.replace(/ /g, "_");
                       // Check for saved poster preference + position
@@ -1582,15 +1511,19 @@ function App() {
                         <button key={sp.sci}
                           className="sp-card"
                           style={{
-                            animationDelay: `${0.08 + gi * 0.05 + si * 0.025}s`,
-                            background: "#000", border: "none",
-                            padding: 0, cursor: editingSpecies && hasPhoto ? (isDraggingSp ? "grabbing" : "grab") : "pointer",
+                            animationDelay: `${0.06 + spIdx * 0.035}s`,
+                            background: hasPhoto ? "#000" : "#fff",
+                            border: hasPhoto ? "none" : "1px solid #e2dfda",
+                            borderRadius: 12, padding: 0,
+                            cursor: editingSpecies && hasPhoto ? (isDraggingSp ? "grabbing" : "grab") : "pointer",
                             textAlign: "left",
-                            display: "block",
-                            width: CARD_MIN,
-                            flexShrink: 0,
+                            display: "flex", flexDirection: "column", justifyContent: "flex-end",
+                            flex: "1 1 0",
+                            maxWidth: `calc((100% - ${(spMaxRowLen - 1) * 10}px) / ${spMaxRowLen})`,
+                            height: 220,
                             position: "relative",
                             overflow: "hidden",
+                            transition: "border-color .2s, box-shadow .2s",
                           }}
                           onMouseDown={e => {
                             if (editingSpecies && hasPhoto) {
@@ -1607,24 +1540,15 @@ function App() {
                               setSelectedSp(sp);
                             }
                           }}>
-                          {/* Image fills entire card */}
-                          <div style={{
-                            width: "100%", aspectRatio: "3/2.5",
-                            background: hasPhoto ? "#000" : `linear-gradient(135deg, ${bg1}, ${bg2})`,
-                            display: "flex", alignItems: "center", justifyContent: "center",
-                            position: "relative",
-                          }}>
-                            {hasPhoto ? (
-                              <img src={thumb} alt={sp.is} style={{
-                                width: "100%", height: "100%",
-                                objectFit: "cover",
-                                objectPosition: `${dragPos.x}% ${dragPos.y}%`,
-                                pointerEvents: "none",
-                              }} />
-                            ) : (
-                              <span style={{ fontSize: 36, opacity: 0.1 }}>🐦</span>
-                            )}
-                          </div>
+                          {/* Photo background */}
+                          {hasPhoto && (
+                            <img src={thumb} alt={sp.is} style={{
+                              position: "absolute", inset: 0, width: "100%", height: "100%",
+                              objectFit: "cover",
+                              objectPosition: `${dragPos.x}% ${dragPos.y}%`,
+                              pointerEvents: "none",
+                            }} />
+                          )}
                           {/* Edit mode indicator */}
                           {editingSpecies && (
                             <div style={{
@@ -1634,38 +1558,33 @@ function App() {
                               fontSize: 7, color: "#fff",
                             }}>{hasPhoto ? "drag · click" : "click to pick"}</div>
                           )}
-                          {/* Text overlay at bottom */}
+                          {/* Text content */}
                           <div style={{
-                            position: "absolute", bottom: 0, left: 0, right: 0,
-                            padding: "20px 8px 7px",
-                            background: hasPhoto
-                              ? "linear-gradient(transparent, rgba(0,0,0,0.7))"
-                              : "linear-gradient(transparent, rgba(0,0,0,0.15))",
+                            position: "relative", zIndex: 1, padding: "16px 18px",
+                            background: hasPhoto ? "linear-gradient(transparent, rgba(0,0,0,0.65))" : "none",
+                            display: "flex", flexDirection: "column", justifyContent: "flex-end", gap: 6,
+                            flex: 1,
                           }}>
                             <div style={{
                               fontFamily: "'Playfair Display',Georgia,serif",
-                              fontSize: totalSp <= 4 ? 15 : 12, fontWeight: 500,
+                              fontSize: 18, fontWeight: 500,
                               color: hasPhoto ? "#fff" : "#2a2a2a",
-                              lineHeight: 1.3, textShadow: hasPhoto ? "0 1px 3px rgba(0,0,0,0.5)" : "none",
+                              textShadow: hasPhoto ? "0 1px 3px rgba(0,0,0,0.5)" : "none",
                             }}>{sp.is}</div>
-                            <div style={{
-                              fontFamily: "'JetBrains Mono',monospace",
-                              fontSize: totalSp <= 4 ? 10 : 8, color: hasPhoto ? "rgba(255,255,255,0.7)" : "#b0a89e",
-                              fontStyle: "italic", marginTop: 1,
-                            }}>{sp.common}</div>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", paddingLeft: 0 }}>
+                              <div style={{ fontFamily: "'JetBrains Mono',monospace",
+                                fontSize: 9.5, color: hasPhoto ? "rgba(255,255,255,0.6)" : "#bbb", fontStyle: "italic" }}>
+                                {sp.common}
+                              </div>
+                              <div style={{ fontFamily: "'JetBrains Mono',monospace",
+                                fontSize: 9.5, color: hasPhoto ? "rgba(255,255,255,0.5)" : "#d0cbc3" }}>{sp.genus}</div>
+                            </div>
                           </div>
                         </button>
                       );
                     })}
-                    </div>
-                  ))}
-                  </div>
-                </div>
-              );
-            })}
-            </div>
-            );
-            })}
+              </div>
+            ))}
           </div>
           );
         })()}
