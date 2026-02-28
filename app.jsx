@@ -1822,10 +1822,9 @@ function App() {
           let globalSpIdx = 0;
           return (
           <div style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(4, 1fr)",
-            gridAutoRows: 160,
-            gridAutoFlow: "dense",
+            display: "flex",
+            flexWrap: "wrap",
+            justifyContent: "center",
             gap: 8,
             marginTop: 12,
           }}>
@@ -1837,8 +1836,8 @@ function App() {
                 <div key={g.genus} className="sp-card"
                   style={{
                     animationDelay: `${0.06 + gIdx * 0.05}s`,
-                    gridColumn: `span ${span.c}`,
-                    gridRow: `span ${span.r}`,
+                    width: `calc(${span.c * 25}% - ${8 - span.c * 2}px)`,
+                    height: span.r * 160 + (span.r - 1) * 8,
                     border: `2px solid hsl(${hue}, 20%, 72%)`,
                     borderRadius: 10,
                     background: `hsl(${hue}, 10%, 96%)`,
