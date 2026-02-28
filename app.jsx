@@ -282,8 +282,8 @@ function balancedRowSizes(n, maxPerRow) {
   const numRows = Math.ceil(n / maxPerRow);
   const base = Math.floor(n / numRows);
   const extra = n % numRows;
-  // Smaller rows first, larger rows last — most cards at bottom
-  return Array.from({ length: numRows }, (_, r) => r < (numRows - extra) ? base : base + 1);
+  // Larger rows first (top), smaller rows last (bottom)
+  return Array.from({ length: numRows }, (_, r) => r < extra ? base + 1 : base);
 }
 
 function splitIntoRows(items, maxPerRow) {
