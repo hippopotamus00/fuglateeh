@@ -1516,14 +1516,15 @@ function App() {
                     background: `hsl(${hue}, 12%, 92%)`,
                     borderBottom: `1px solid hsl(${hue}, 15%, 86%)`,
                     flexShrink: 0,
+                    textAlign: "center",
                   }}>{g.genus} · {n} sp.</div>
                   {/* Species cards grid */}
                   <div style={{
                     flex: 1,
                     display: "grid",
                     gridTemplateColumns: `repeat(${cols}, 1fr)`,
-                    gap: 4,
-                    padding: 4,
+                    gap: 0,
+                    padding: 0,
                   }}>
                     {g.species.map((sp, si) => {
                       const spIdx = globalSpIdx++;
@@ -1553,8 +1554,8 @@ function App() {
                         <button key={sp.sci}
                           style={{
                             background: hasPhoto ? "#000" : "#fff",
-                            border: hasPhoto ? "none" : "1px solid #e2dfda",
-                            borderRadius: 8, padding: 0,
+                            border: "none",
+                            borderRadius: 0, padding: 0,
                             cursor: editingSpecies && hasPhoto ? (isDraggingSp ? "grabbing" : "grab") : "pointer",
                             textAlign: "left",
                             display: "flex", flexDirection: "column", justifyContent: "flex-end",
