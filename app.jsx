@@ -1097,6 +1097,20 @@ function App() {
   const [ordPicker, setOrdPicker] = useState(null); // { orderKey, orderLabel, photos[] }
   const [ordDragging, setOrdDragging] = useState(null); // { orderKey, startX, startY, origX, origY, curX, curY, boxRect }
 
+  // Enter key exits editing on any page
+  useEffect(() => {
+    if (!editingOrders && !editingFamilies && !editingSpecies) return;
+    const onKey = (e) => {
+      if (e.key === "Enter") {
+        setEditingOrders(false);
+        setEditingFamilies(false);
+        setEditingSpecies(false);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [editingOrders, editingFamilies, editingSpecies]);
+
   const total = TAXONOMY.reduce((s, o) => s + o.families.reduce((s2, f) => s2 + f.species.length, 0), 0);
   const curOrder = orderIdx !== null ? TAXONOMY[orderIdx] : null;
   const curFam = famIdx !== null && curOrder ? curOrder.families[famIdx] : null;
