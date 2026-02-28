@@ -720,8 +720,7 @@ function SpeciesPage({ sp, hue, onBack }) {
           <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginTop: 1 }}>
             <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: mood.text, opacity: 0.5, fontStyle: "italic" }}>{sp.sci}</span>
             <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 10.5, color: mood.text, opacity: 0.4 }}>{sp.common}</span>
-            {sp.visitor && <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 9, color: mood.text, opacity: 0.5, border: `1px solid ${mood.text}44`, borderRadius: 8, padding: "1px 7px" }}>gestur</span>}
-          </div>
+                      </div>
         </div>
         <button onClick={() => { if (editing) setCropMode(false); setEditing(!editing); }} style={{
           background: editing ? `hsl(${hue}, 30%, 50%)` : "transparent",
@@ -1210,24 +1209,23 @@ function App() {
         .modal-in{animation:modalFade .25s ease both}
       `}</style>
 
+      {/* Export button — top right */}
+      <button onClick={exportSettings} title="Download settings.js — drop into project folder and push to GitHub" style={{
+        position: "fixed", top: 12, right: 16, zIndex: 50,
+        fontFamily: "'JetBrains Mono',monospace", fontSize: 10,
+        padding: "4px 12px", borderRadius: 10, cursor: "pointer",
+        background: "rgba(232,226,216,0.85)", color: "#5a5040", border: "1px solid #b8b0a4",
+        fontWeight: 600, backdropFilter: "blur(8px)",
+      }}>⬇ Export</button>
+
       {/* Header */}
-      <div style={{ width: "100%", maxWidth: 900, marginBottom: 4 }}>
+      <div style={{ width: "100%", maxWidth: 900, marginBottom: 4, textAlign: "center" }}>
         <h1 style={{ fontFamily: "'Playfair Display',Georgia,serif",
           fontSize: 22, fontWeight: 600, margin: "0 0 3px", color: "#1a1a1a" }}>
-          Breeding Birds of Iceland
+          fuglateeh
         </h1>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-          <span style={{ fontFamily: "'JetBrains Mono',monospace",
-            fontSize: 10.5, color: "#b0a89e" }}>{total} species · ✦ = visitor · click to explore</span>
-          <div style={{ display: "flex", gap: 6 }}>
-            <button onClick={exportSettings} title="Download settings.js — drop into project folder and push to GitHub" style={{
-              fontFamily: "'JetBrains Mono',monospace", fontSize: 11,
-              padding: "5px 14px", borderRadius: 12, cursor: "pointer",
-              background: "#e8e2d8", color: "#5a5040", border: "1.5px solid #b8b0a4",
-              fontWeight: 600,
-            }}>⬇ Export Settings</button>
-          </div>
-        </div>
+        <span style={{ fontFamily: "'JetBrains Mono',monospace",
+          fontSize: 10.5, color: "#b0a89e" }}>{total} species</span>
       </div>
 
       {/* Breadcrumb + filters */}
@@ -1593,7 +1591,7 @@ function App() {
                               fontSize: totalSp <= 4 ? 15 : 12, fontWeight: 500,
                               color: hasPhoto ? "#fff" : "#2a2a2a",
                               lineHeight: 1.3, textShadow: hasPhoto ? "0 1px 3px rgba(0,0,0,0.5)" : "none",
-                            }}>{sp.is}{sp.visitor ? " ✦" : ""}</div>
+                            }}>{sp.is}</div>
                             <div style={{
                               fontFamily: "'JetBrains Mono',monospace",
                               fontSize: totalSp <= 4 ? 10 : 8, color: hasPhoto ? "rgba(255,255,255,0.7)" : "#b0a89e",
