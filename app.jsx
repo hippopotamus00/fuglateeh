@@ -1194,7 +1194,17 @@ function SpeciesPage({ sp, hue, onBack, allPhotos, region }) {
                   const cur = { ...configRef.current };
                   const newCrops = { ...(cur.crops || {}) };
                   delete newCrops[p.id];
-                  saveConfig({ ...cur, crops: newCrops });
+                  // Reset box AR to image's natural aspect ratio
+                  const newPositions = cur.positions ? [...cur.positions] : [...positions];
+                  const nat = naturalDimsRef.current[p.id];
+                  const canvas = canvasRef.current;
+                  if (nat && canvas) {
+                    const curPos = newPositions[i] || pos;
+                    const newH = curPos.w * (nat.h / nat.w) * (canvas.offsetWidth / canvas.offsetHeight);
+                    const centerY = curPos.y + curPos.h / 2;
+                    newPositions[i] = { ...curPos, h: newH, y: Math.max(0, centerY - newH / 2) };
+                  }
+                  saveConfig({ ...cur, crops: newCrops, positions: newPositions });
                 } else if (editing && !cropMode) {
                   setFrontIdx(i);
                 }
@@ -1244,7 +1254,7 @@ function SpeciesPage({ sp, hue, onBack, allPhotos, region }) {
                   background: "rgba(0,0,0,0.5)", color: "#fff",
                   fontFamily: "'JetBrains Mono',monospace", fontSize: 8,
                   padding: "1px 8px", borderRadius: 8, whiteSpace: "nowrap", pointerEvents: "none",
-                }}>{hasCrop ? "drag to move · double-click to reset" : "drag edges to crop"}</div>
+                }}>{"drag edges to crop · double-click to reset"}</div>
               </>}
               {/* Mirror toggle in edit mode */}
               {editing && (
