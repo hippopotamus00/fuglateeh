@@ -40,7 +40,7 @@ const TAXONOMY_ICELAND = [
         { common: "Barnacle Goose", sci: "Branta leucopsis", is: "Helsingi", tags: ["landscape"] },
         { common: "Brant", sci: "Branta bernicla", is: "Margæs", tags: ["landscape"], visitor: true },
         { common: "Whooper Swan", sci: "Cygnus cygnus", is: "Álft", tags: ["portrait","landscape"] },
-        { common: "Gadwall", sci: "Mareca strepera", is: "Gráönd", tags: ["portrait"] },
+        { common: "Gadwall", sci: "Mareca strepera", is: "Gargönd", tags: ["portrait"] },
         { common: "Eurasian Wigeon", sci: "Mareca penelope", is: "Rauðhöfðaönd", tags: ["portrait","landscape"] },
         { common: "Mallard", sci: "Anas platyrhynchos", is: "Stokkönd", tags: ["portrait","landscape"] },
         { common: "Northern Pintail", sci: "Anas acuta", is: "Grafönd", tags: ["portrait"] },
