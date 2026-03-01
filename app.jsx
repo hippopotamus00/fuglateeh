@@ -1314,6 +1314,7 @@ function App() {
   const [spPicker, setSpPicker] = useState(null); // { speciesKey, speciesLabel, photos[] }
   const [spDragging, setSpDragging] = useState(null); // { speciesKey, startX, startY, origX, origY, curX, curY, boxRect }
   const spDidDrag = React.useRef(false);
+  const spMouseDownAt = React.useRef(0);
   const [editingOrders, setEditingOrders] = useState(false);
   const [ordPicker, setOrdPicker] = useState(null); // { orderKey, orderLabel, photos[] }
   const [ordDragging, setOrdDragging] = useState(null); // { orderKey, startX, startY, origX, origY, curX, curY, boxRect }
@@ -1731,6 +1732,7 @@ function App() {
                 onMouseEnter={e => { if (!hasPhoto) { e.currentTarget.style.borderColor = `hsl(${p.hue || hue}, 20%, 72%)`; e.currentTarget.style.boxShadow = "0 3px 16px rgba(0,0,0,0.06)"; } }}
                 onMouseLeave={e => { if (!hasPhoto) { e.currentTarget.style.borderColor = "#e2dfda"; e.currentTarget.style.boxShadow = "none"; } }}
                 onMouseDown={e => {
+                  e.currentTarget._mdTime = Date.now();
                   if (isEditing && hasPhoto) {
                     e.preventDefault();
                     const boxRect = e.currentTarget.getBoundingClientRect();
@@ -1741,8 +1743,9 @@ function App() {
                     }
                   }
                 }}
-                onClick={() => {
+                onClick={e => {
                   if (isDrag || activeDrag) return; // ignore click after drag
+                  if (isEditing && (Date.now() - (e.currentTarget._mdTime || 0) > 150)) return;
                   if (isEditing) {
                     // Open photo picker
                     const allPhotos = [];
@@ -1972,6 +1975,7 @@ function App() {
                             minHeight: 0,
                           }}
                           onMouseDown={e => {
+                            spMouseDownAt.current = Date.now();
                             if (editingSpecies && hasPhoto) {
                               e.preventDefault();
                               const boxRect = e.currentTarget.getBoundingClientRect();
@@ -1979,7 +1983,7 @@ function App() {
                             }
                           }}
                           onClick={() => {
-                            if (spDragging || spDidDrag.current) { spDidDrag.current = false; return; }
+                            if (spDragging || spDidDrag.current || (Date.now() - spMouseDownAt.current > 150)) { spDidDrag.current = false; return; }
                             if (editingSpecies) {
                               setSpPicker({ speciesKey: spKey, speciesLabel: sp.is || sp.en, photos, currentThumb: thumb });
                             } else {
