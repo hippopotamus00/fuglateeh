@@ -1885,7 +1885,7 @@ function App() {
                   const gIdx = globalGIdx++;
                   const n = g.species.length;
                   const innerRows = Math.ceil(n / g.cols);
-                  const minH = innerRows * 130 + 28; // 28px for genus header
+                  const minH = innerRows * 190 + 28; // 28px for genus header
                   return (
                 <div key={g.genus} className="sp-card"
                   style={{
