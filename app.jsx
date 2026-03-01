@@ -1907,7 +1907,12 @@ function App() {
                   const gIdx = globalGIdx++;
                   const n = g.species.length;
                   const innerRows = Math.ceil(n / g.cols);
-                  const minH = innerRows * 190 + 28; // 28px for genus header
+                  const totalSpeciesInFam = genusGroups.reduce((s, gg) => s + gg.species.length, 0);
+                  // Few species = big cards filling most of the viewport
+                  const minH = totalSpeciesInFam <= 1 ? "70vh"
+                    : totalSpeciesInFam <= 2 ? "50vh"
+                    : totalSpeciesInFam <= 4 ? innerRows * 300 + 28
+                    : innerRows * 190 + 28;
                   return (
                 <div key={g.genus} className="sp-card"
                   style={{
