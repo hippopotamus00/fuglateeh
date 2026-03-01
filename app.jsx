@@ -1840,18 +1840,17 @@ function App() {
         {/* Species view — genus-grouped puzzle/mosaic layout */}
         {isSpeciesLevel && (() => {
           // Column weight for each genus based on species count
+          // Each card should be at least 1/4 of the row width (like a single-species genus)
           const genusWeight = (n) => {
-            if (n <= 2) return 1;
-            if (n <= 4) return 2;
-            if (n <= 8) return 3;
-            return 4;
-          };
-          // Inner grid columns for species within a genus box
-          const innerCols = (n, weight) => {
-            if (n <= 2) return n <= 1 ? 1 : 2;
+            if (n <= 1) return 1;
             if (n <= 4) return 2;
             if (n <= 6) return 3;
-            return Math.min(n, 4);
+            return 4;
+          };
+          // Inner columns never exceed weight, so every card is >= 1/4 row width
+          const innerCols = (n, weight) => {
+            if (n <= 1) return 1;
+            return Math.min(n, weight);
           };
 
           // Pack genus groups into rows (greedy bin-packing, max 4 weight per row)
