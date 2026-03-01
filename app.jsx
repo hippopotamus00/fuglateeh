@@ -1315,6 +1315,7 @@ function App() {
   const [spDragging, setSpDragging] = useState(null); // { speciesKey, startX, startY, origX, origY, curX, curY, boxRect }
   const spDidDrag = React.useRef(false);
   const spMouseDownAt = React.useRef(0);
+  const [genusOrderKey, setGenusOrderKey] = useState(0); // bump to re-render after genus reorder
   const [editingOrders, setEditingOrders] = useState(false);
   const [ordPicker, setOrdPicker] = useState(null); // { orderKey, orderLabel, photos[] }
   const [ordDragging, setOrdDragging] = useState(null); // { orderKey, startX, startY, origX, origY, curX, curY, boxRect }
@@ -1356,7 +1357,7 @@ function App() {
   const curFam = famIdx !== null && curOrder ? curOrder.families[famIdx] : null;
   const hue = curOrder ? ORDER_HUE[curOrder.order] || 0 : 0;
 
-  // Build genus groups
+  // Build genus groups (apply custom order from localStorage if set)
   const genusGroups = useMemo(() => {
     if (!curFam) return [];
     const sp = filter ? curFam.species.filter(s => s.tags && s.tags.includes(filter)) : curFam.species;
@@ -1366,8 +1367,22 @@ function App() {
       if (!map.has(genus)) map.set(genus, []);
       map.get(genus).push(s);
     });
-    return Array.from(map.entries()).map(([genus, species]) => ({ genus, species }));
-  }, [curFam, filter]);
+    return Array.from(map.entries()).map(([genus, species]) => {
+      // Apply custom order if stored
+      try {
+        const orderJson = rGet(region, `genusOrder:${curFam.family}:${genus}`);
+        if (orderJson) {
+          const order = JSON.parse(orderJson);
+          const byName = new Map(species.map(s => [s.sci, s]));
+          const sorted = [];
+          order.forEach(sci => { if (byName.has(sci)) { sorted.push(byName.get(sci)); byName.delete(sci); } });
+          byName.forEach(s => sorted.push(s)); // append any not in saved order
+          return { genus, species: sorted };
+        }
+      } catch(e) {}
+      return { genus, species };
+    });
+  }, [curFam, filter, region, genusOrderKey]);
 
   // Breadcrumb
   const crumbs = ["Fuglar"];
@@ -2024,6 +2039,35 @@ function App() {
                               padding: "2px 6px", fontFamily: "'JetBrains Mono',monospace",
                               fontSize: 7, color: "#fff",
                             }}>{hasPhoto ? "drag · click" : "click"}</div>
+                          )}
+                          {editingSpecies && n > 1 && (
+                            <div style={{
+                              position: "absolute", bottom: 4, left: "50%", transform: "translateX(-50%)", zIndex: 2,
+                              display: "flex", gap: 2,
+                            }}>
+                              {si > 0 && <div onClick={e => {
+                                e.stopPropagation();
+                                const order = g.species.map(s => s.sci);
+                                [order[si - 1], order[si]] = [order[si], order[si - 1]];
+                                rSet(region, `genusOrder:${curFam.family}:${g.genus}`, JSON.stringify(order));
+                                setGenusOrderKey(k => k + 1);
+                              }} style={{
+                                width: 20, height: 20, borderRadius: 3,
+                                background: "rgba(0,0,0,0.5)", color: "#fff", fontSize: 11,
+                                cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+                              }}>◀</div>}
+                              {si < n - 1 && <div onClick={e => {
+                                e.stopPropagation();
+                                const order = g.species.map(s => s.sci);
+                                [order[si], order[si + 1]] = [order[si + 1], order[si]];
+                                rSet(region, `genusOrder:${curFam.family}:${g.genus}`, JSON.stringify(order));
+                                setGenusOrderKey(k => k + 1);
+                              }} style={{
+                                width: 20, height: 20, borderRadius: 3,
+                                background: "rgba(0,0,0,0.5)", color: "#fff", fontSize: 11,
+                                cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+                              }}>▶</div>}
+                            </div>
                           )}
                           <div style={{
                             position: "relative", zIndex: 1, padding: "8px 10px",
