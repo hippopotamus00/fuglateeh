@@ -1742,7 +1742,7 @@ function App() {
                   transition: "border-color .2s, box-shadow .2s",
                   flex: "1 1 0",
                   maxWidth: `calc((100% - ${(maxRowLen - 1) * 10}px) / ${maxRowLen})`,
-                  height: 220,
+                  height: items.length <= 1 ? "70vh" : items.length <= 3 ? "50vh" : items.length <= 6 ? 320 : 220,
                 }}
                 onMouseEnter={e => { if (!hasPhoto) { e.currentTarget.style.borderColor = `hsl(${p.hue || hue}, 20%, 72%)`; e.currentTarget.style.boxShadow = "0 3px 16px rgba(0,0,0,0.06)"; } }}
                 onMouseLeave={e => { if (!hasPhoto) { e.currentTarget.style.borderColor = "#e2dfda"; e.currentTarget.style.boxShadow = "none"; } }}
