@@ -1949,7 +1949,9 @@ function App() {
                       const totalRows = Math.ceil(n / g.cols);
                       const isBottom = row === totalRows - 1;
                       const isLeft = col === 0;
-                      const isRight = isBottom ? si === n - 1 : col === g.cols - 1;
+                      const isLast = si === n - 1;
+                      const remainCols = isLast ? g.cols - col : 1;
+                      const isRight = isLast || col === g.cols - 1;
                       const R = 9;
                       const br = `0 0 ${isBottom && isRight ? R : 0}px ${isBottom && isLeft ? R : 0}px`;
                       return (
@@ -1958,6 +1960,7 @@ function App() {
                             background: hasPhoto ? "#000" : "#fff",
                             border: "none",
                             borderRadius: br, padding: 0,
+                            gridColumn: remainCols > 1 ? `span ${remainCols}` : undefined,
                             cursor: editingSpecies && hasPhoto ? (isDraggingSp ? "grabbing" : "grab") : "pointer",
                             textAlign: "left",
                             display: "flex", flexDirection: "column", justifyContent: "flex-end",
