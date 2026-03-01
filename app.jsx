@@ -1829,45 +1829,62 @@ function App() {
           );
         })()}
 
-        {/* Species view — genus-grouped puzzle/mosaic layout, 4 columns */}
+        {/* Species view — genus-grouped puzzle/mosaic layout */}
         {isSpeciesLevel && (() => {
-          // Determine grid span for each genus group
-          const genusSpan = (n) => {
-            if (n <= 1) return { c: 1, r: 1 };
-            if (n === 2) return { c: 1, r: 2 };
-            if (n === 3) return { c: 3, r: 1 };
-            if (n === 4) return { c: 2, r: 2 };
-            if (n <= 6) return { c: 3, r: 2 };
-            if (n <= 8) return { c: 4, r: 2 };
-            if (n <= 12) return { c: 4, r: 3 };
-            return { c: 4, r: Math.ceil(n / 4) };
+          // Column weight for each genus based on species count
+          const genusWeight = (n) => {
+            if (n <= 2) return 1;
+            if (n <= 4) return 2;
+            if (n <= 8) return 3;
+            return 4;
           };
-          // Inner grid columns for species within a genus
-          const innerCols = (n, spanC) => {
-            if (n === 2 && spanC === 1) return 1; // stacked
-            if (n === 3 && spanC === 3) return 3;
-            if (n === 4 && spanC === 2) return 2;
-            return Math.min(n, spanC);
+          // Inner grid columns for species within a genus box
+          const innerCols = (n, weight) => {
+            if (n <= 2) return n <= 1 ? 1 : 2;
+            if (n <= 4) return 2;
+            if (n <= 6) return 3;
+            return Math.min(n, 4);
           };
-          let globalSpIdx = 0;
+
+          // Pack genus groups into rows (greedy bin-packing, max 4 weight per row)
+          const MAX_W = 4;
+          const items = genusGroups.map((g, i) => {
+            const n = g.species.length;
+            const w = genusWeight(n);
+            const cols = innerCols(n, w);
+            return { ...g, w, cols, origIdx: i };
+          });
+          const rows = [];
+          let curRow = [], curW = 0;
+          for (const item of items) {
+            if (curW + item.w > MAX_W && curRow.length > 0) {
+              rows.push(curRow);
+              curRow = [item]; curW = item.w;
+            } else {
+              curRow.push(item); curW += item.w;
+            }
+          }
+          if (curRow.length) rows.push(curRow);
+
+          let globalGIdx = 0;
           return (
           <div style={{
-            display: "flex",
-            flexWrap: "wrap",
-            justifyContent: "center",
-            gap: 8,
-            marginTop: 12,
+            display: "flex", flexDirection: "column",
+            gap: 8, marginTop: 12,
           }}>
-            {genusGroups.map((g, gIdx) => {
-              const n = g.species.length;
-              const span = genusSpan(n);
-              const cols = innerCols(n, span.c);
-              return (
+            {rows.map((row, ri) => (
+              <div key={ri} style={{ display: "flex", gap: 8, alignItems: "stretch" }}>
+                {row.map(g => {
+                  const gIdx = globalGIdx++;
+                  const n = g.species.length;
+                  const innerRows = Math.ceil(n / g.cols);
+                  const minH = innerRows * 130 + 28; // 28px for genus header
+                  return (
                 <div key={g.genus} className="sp-card"
                   style={{
                     animationDelay: `${0.06 + gIdx * 0.05}s`,
-                    width: `calc(${span.c * 25}% - ${8 - span.c * 2}px)`,
-                    height: span.r * 160 + (span.r - 1) * 8,
+                    flex: `${g.w} 0 0`,
+                    minHeight: minH,
                     border: `2px solid hsl(${hue}, 20%, 72%)`,
                     borderRadius: 10,
                     background: `hsl(${hue}, 10%, 96%)`,
@@ -1889,12 +1906,11 @@ function App() {
                   <div style={{
                     flex: 1,
                     display: "grid",
-                    gridTemplateColumns: `repeat(${cols}, 1fr)`,
+                    gridTemplateColumns: `repeat(${g.cols}, 1fr)`,
                     gap: 0,
                     padding: 0,
                   }}>
                     {g.species.map((sp, si) => {
-                      const spIdx = globalSpIdx++;
                       const photos = PHOTOS[sp.sci] || [];
                       const spKey = sp.sci.replace(/ /g, "_");
                       let thumb = photos.length > 0 ? photos[0].thumb : null;
@@ -1920,12 +1936,12 @@ function App() {
                       const isDraggingSp = spDragging && spDragging.speciesKey === spKey;
                       const dragPos = isDraggingSp ? { x: spDragging.curX, y: spDragging.curY } : posterPos;
                       // Compute edge border-radius: round only outer edges matching genus box (9px)
-                      const row = Math.floor(si / cols);
-                      const col = si % cols;
-                      const totalRows = Math.ceil(n / cols);
+                      const row = Math.floor(si / g.cols);
+                      const col = si % g.cols;
+                      const totalRows = Math.ceil(n / g.cols);
                       const isBottom = row === totalRows - 1;
                       const isLeft = col === 0;
-                      const isRight = isBottom ? si === n - 1 : col === cols - 1;
+                      const isRight = isBottom ? si === n - 1 : col === g.cols - 1;
                       const R = 9;
                       const br = `0 0 ${isBottom && isRight ? R : 0}px ${isBottom && isLeft ? R : 0}px`;
                       return (
@@ -2018,8 +2034,10 @@ function App() {
                     })}
                   </div>
                 </div>
-              );
-            })}
+                  );
+                })}
+              </div>
+            ))}
           </div>
           );
         })()}
