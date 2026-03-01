@@ -422,6 +422,7 @@ function buildPhotos(manifest) {
 }
 const PHOTOS_ICELAND = buildPhotos(typeof PHOTO_MANIFEST_ICELAND !== 'undefined' ? PHOTO_MANIFEST_ICELAND : {});
 const PHOTOS_FLORIDA = buildPhotos(typeof PHOTO_MANIFEST_FLORIDA !== 'undefined' ? PHOTO_MANIFEST_FLORIDA : {});
+const PHOTOS_EUROPE = buildPhotos(typeof PHOTO_MANIFEST_EUROPE !== 'undefined' ? PHOTO_MANIFEST_EUROPE : {});
 
 const ORDER_HUE = {
   Anseriformes: 195, Galliformes: 35, Podicipediformes: 155,
@@ -430,6 +431,9 @@ const ORDER_HUE = {
   Strigiformes: 270, Falconiformes: 20, Passeriformes: 140,
   Pelecaniformes: 175, Gruiformes: 95, Piciformes: 45,
   Psittaciformes: 120, Caprimulgiformes: 255, Coraciiformes: 200,
+  Pterocliformes: 50, Otidiformes: 65, Cuculiformes: 305,
+  Apodiformes: 170, Phoenicopteriformes: 340, Phaethontiformes: 15,
+  Ciconiiformes: 10, Bucerotiformes: 75,
 };
 
 const TAG_INFO = {
@@ -988,10 +992,10 @@ function SpeciesPage({ sp, hue, onBack, allPhotos, region }) {
             fontFamily: "'Playfair Display',Georgia,serif",
             fontSize: 22, fontWeight: 600, margin: 0, color: mood.text,
             transition: "color .3s",
-          }}>{sp.is}</h1>
+          }}>{sp.is || sp.en}</h1>
           <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginTop: 1 }}>
             <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: mood.text, opacity: 0.5, fontStyle: "italic" }}>{sp.sci}</span>
-            <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 10.5, color: mood.text, opacity: 0.4 }}>{sp.common}</span>
+            {(sp.common || (sp.en && sp.is)) && <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 10.5, color: mood.text, opacity: 0.4 }}>{sp.common || sp.en}</span>}
                       </div>
         </div>
         <button onClick={() => { if (editing) setCropMode(false); setEditing(!editing); }} style={{
@@ -1218,7 +1222,7 @@ function SpeciesPage({ sp, hue, onBack, allPhotos, region }) {
                 outline: editing ? `1px dashed ${isCropMode ? `hsl(${hue}, 50%, 60%)` : `${mood.text}33`}` : "none",
                 zIndex: (dragging?.idx === i || cropping?.idx === p.id || cropDragging?.idx === p.id) ? 10 : (frontIdx === i ? 5 : 1),
               }}>
-              <img src={p.full} alt={sp.is}
+              <img src={p.full} alt={sp.is || sp.en}
                 onLoad={e => { naturalDimsRef.current[p.id] = { w: e.target.naturalWidth, h: e.target.naturalHeight }; }}
                 style={{
                   ...imgSizing,
@@ -1289,6 +1293,7 @@ function SpeciesPage({ sp, hue, onBack, allPhotos, region }) {
 /* ── Main component ─────────────────────────────────────────── */
 function App() {
   const [region, setRegion] = useState("iceland");
+  const [europeIncludeIceland, setEuropeIncludeIceland] = useState(true);
   const [orderIdx, setOrderIdx] = useState(null);
   const [famIdx, setFamIdx] = useState(null);
   const [selectedSp, setSelectedSp] = useState(null);
@@ -1319,8 +1324,23 @@ function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, [editingOrders, editingFamilies, editingSpecies]);
 
-  const TAXONOMY = region === "iceland" ? TAXONOMY_ICELAND : TAXONOMY_FLORIDA;
-  const PHOTOS = region === "iceland" ? PHOTOS_ICELAND : PHOTOS_FLORIDA;
+  const TAXONOMY_EUROPE_RAW = typeof TAXONOMY_EUROPE !== 'undefined' ? TAXONOMY_EUROPE : [];
+  const TAXONOMY = useMemo(() => {
+    if (region === "iceland") return TAXONOMY_ICELAND;
+    if (region === "florida") return TAXONOMY_FLORIDA;
+    // Europe
+    if (europeIncludeIceland) return TAXONOMY_EUROPE_RAW;
+    const icelandSci = new Set();
+    TAXONOMY_ICELAND.forEach(o => o.families.forEach(f => f.species.forEach(s => icelandSci.add(s.sci))));
+    return TAXONOMY_EUROPE_RAW.map(o => ({
+      ...o, families: o.families.map(f => ({
+        ...f, species: f.species.filter(s => !icelandSci.has(s.sci))
+      })).filter(f => f.species.length > 0)
+    })).filter(o => o.families.length > 0);
+  }, [region, europeIncludeIceland]);
+  const PHOTOS = region === "iceland" ? PHOTOS_ICELAND
+    : region === "florida" ? PHOTOS_FLORIDA
+    : PHOTOS_EUROPE;
 
   const total = TAXONOMY.reduce((s, o) => s + o.families.reduce((s2, f) => s2 + f.species.length, 0), 0);
   const curOrder = orderIdx !== null ? TAXONOMY[orderIdx] : null;
@@ -1330,7 +1350,7 @@ function App() {
   // Build genus groups
   const genusGroups = useMemo(() => {
     if (!curFam) return [];
-    const sp = filter ? curFam.species.filter(s => s.tags.includes(filter)) : curFam.species;
+    const sp = filter ? curFam.species.filter(s => s.tags && s.tags.includes(filter)) : curFam.species;
     const map = new Map();
     sp.forEach(s => {
       const genus = s.sci.split(" ")[0];
@@ -1375,7 +1395,7 @@ function App() {
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
       if (key.startsWith("sp:") || key.startsWith("fam:") || key.startsWith("ord:") ||
-          key.startsWith("iceland:") || key.startsWith("florida:")) {
+          key.startsWith("iceland:") || key.startsWith("florida:") || key.startsWith("europe:")) {
         allSettings[key] = localStorage.getItem(key);
       }
     }
@@ -1524,9 +1544,9 @@ function App() {
           fontSize: 22, fontWeight: 600, margin: "0 0 3px", color: "#1a1a1a" }}>
           fuglateeh
         </h1>
-        {orderIdx === null && (
+        {orderIdx === null && (<>
           <div style={{ display: "flex", justifyContent: "center", gap: 0, margin: "4px 0 2px" }}>
-            {[["iceland", "Ísland"], ["florida", "Flórída"]].map(([key, label]) => (
+            {[["iceland", "Ísland"], ["florida", "Flórída"], ["europe", "Evrópa"]].map(([key, label], i, arr) => (
               <button key={key} onClick={() => {
                 if (region !== key) {
                   setRegion(key); setOrderIdx(null); setFamIdx(null); setSelectedSp(null);
@@ -1539,12 +1559,22 @@ function App() {
                 background: region === key ? "#2a2a2a" : "transparent",
                 color: region === key ? "#f5f0e8" : "#b0a89e",
                 border: region === key ? "none" : "1px solid #e0ddd8",
-                borderRadius: key === "iceland" ? "10px 0 0 10px" : "0 10px 10px 0",
+                borderRadius: i === 0 ? "10px 0 0 10px" : i === arr.length - 1 ? "0 10px 10px 0" : "0",
                 transition: "all .2s",
               }}>{label}</button>
             ))}
           </div>
-        )}
+          {region === "europe" && (
+            <label style={{ display: "flex", alignItems: "center", justifyContent: "center",
+              gap: 5, margin: "2px 0 0", cursor: "pointer",
+              fontFamily: "'JetBrains Mono',monospace", fontSize: 9.5, color: "#b0a89e" }}>
+              <input type="checkbox" checked={europeIncludeIceland}
+                onChange={e => { setEuropeIncludeIceland(e.target.checked); setOrderIdx(null); setFamIdx(null); setSelectedSp(null); setAnimKey(k => k + 1); }}
+                style={{ accentColor: "#2a2a2a" }} />
+              Íslenskar tegundir
+            </label>
+          )}
+        </>)}
         <span style={{ fontFamily: "'JetBrains Mono',monospace",
           fontSize: 10.5, color: "#b0a89e" }}>{total} species</span>
       </div>
@@ -1709,7 +1739,7 @@ function App() {
                       ord.families.forEach(fam => {
                         fam.species.forEach(sp => {
                           const photos = PHOTOS[sp.sci] || [];
-                          photos.forEach(ph => allPhotos.push({ ...ph, speciesIs: sp.is, speciesSci: sp.sci }));
+                          photos.forEach(ph => allPhotos.push({ ...ph, speciesIs: sp.is || sp.en, speciesSci: sp.sci }));
                         });
                       });
                       setOrdPicker({ orderKey: p.key, orderLabel: p.label, photos: allPhotos, currentPhoto: nodePhoto });
@@ -1717,7 +1747,7 @@ function App() {
                       const fam = curOrder.families[p.idx];
                       fam.species.forEach(sp => {
                         const photos = PHOTOS[sp.sci] || [];
-                        photos.forEach(ph => allPhotos.push({ ...ph, speciesIs: sp.is, speciesSci: sp.sci }));
+                        photos.forEach(ph => allPhotos.push({ ...ph, speciesIs: sp.is || sp.en, speciesSci: sp.sci }));
                       });
                       setFamPicker({ familyKey: p.key, familyLabel: p.label, photos: allPhotos, currentPhoto: nodePhoto });
                     }
@@ -1757,7 +1787,7 @@ function App() {
                     <div style={{ fontFamily: "'JetBrains Mono',monospace",
                       fontSize: 9.5, color: hasPhoto ? "rgba(255,255,255,0.6)" : "#bbb", fontStyle: "italic",
                       overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {p.sub}
+                      {p.sub !== p.label ? p.sub : ""}
                     </div>
                     <div style={{ fontFamily: "'JetBrains Mono',monospace",
                       fontSize: 9.5, color: hasPhoto ? "rgba(255,255,255,0.5)" : "#d0cbc3", flexShrink: 0 }}>{p.count} sp.</div>
@@ -1921,13 +1951,13 @@ function App() {
                           onClick={() => {
                             if (spDragging || spDidDrag.current) { spDidDrag.current = false; return; }
                             if (editingSpecies) {
-                              setSpPicker({ speciesKey: spKey, speciesLabel: sp.is, photos, currentThumb: thumb });
+                              setSpPicker({ speciesKey: spKey, speciesLabel: sp.is || sp.en, photos, currentThumb: thumb });
                             } else {
                               setSelectedSp(sp);
                             }
                           }}>
                           {hasPhoto && (
-                            <img src={thumb} alt={sp.is} style={{
+                            <img src={thumb} alt={sp.is || sp.en} style={{
                               position: "absolute", inset: 0, width: "100%", height: "100%",
                               objectFit: "cover",
                               objectPosition: `${dragPos.x}% ${dragPos.y}%`,
@@ -1972,16 +2002,16 @@ function App() {
                               fontSize: 14, fontWeight: 500,
                               color: hasPhoto ? "#fff" : "#2a2a2a",
                               textShadow: hasPhoto ? "0 1px 3px rgba(0,0,0,0.5)" : "none",
-                            }}>{sp.is}</div>
+                            }}>{sp.is || sp.en}</div>
                             <div style={{
                               fontFamily: "'JetBrains Mono',monospace",
                               fontSize: 8.5, color: hasPhoto ? "rgba(255,255,255,0.6)" : "#bbb",
                               fontStyle: "italic",
                             }}>{sp.sci}</div>
-                            <div style={{
+                            {(sp.common || (sp.en && sp.is)) && <div style={{
                               fontFamily: "'JetBrains Mono',monospace",
                               fontSize: 7.5, color: hasPhoto ? "rgba(255,255,255,0.4)" : "#ccc",
-                            }}>{sp.common}</div>
+                            }}>{sp.common || sp.en}</div>}
                           </div>
                         </button>
                       );
