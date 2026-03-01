@@ -1384,9 +1384,13 @@ function App() {
 
   const goTo = useCallback((level) => {
     if (level === 0) { setOrderIdx(null); setFamIdx(null); }
-    else if (level === 1) { setFamIdx(null); }
+    else if (level === 1) {
+      // Skip order view for single-family orders
+      if (curOrder && curOrder.families.length === 1) { setOrderIdx(null); setFamIdx(null); }
+      else { setFamIdx(null); }
+    }
     setAnimKey(k => k + 1);
-  }, []);
+  }, [curOrder]);
 
   const pickOrder = useCallback(i => {
     setOrderIdx(i);
@@ -1615,7 +1619,7 @@ function App() {
         <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 10, margin: "8px 0 6px" }}>
           {orderIdx !== null && (
             <button
-              onClick={() => { if (curFam) goTo(1); else goTo(0); }}
+              onClick={() => { if (curFam) { curOrder.families.length === 1 ? goTo(0) : goTo(1); } else goTo(0); }}
               className="tree-node"
               style={{
                 background: "none", border: "none", cursor: "pointer",
@@ -1629,7 +1633,7 @@ function App() {
             >‹</button>
           )}
           <button
-            onClick={() => { if (curFam) goTo(1); else if (curOrder) goTo(0); }}
+            onClick={() => { if (curFam) { curOrder.families.length === 1 ? goTo(0) : goTo(1); } else if (curOrder) goTo(0); }}
             className="tree-node"
             style={{
               background: rootHue >= 0 ? `hsl(${rootHue}, 22%, 28%)` : "#1a1a1a",
