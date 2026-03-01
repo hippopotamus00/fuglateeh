@@ -422,7 +422,15 @@ function buildPhotos(manifest) {
 }
 const PHOTOS_ICELAND = buildPhotos(typeof PHOTO_MANIFEST_ICELAND !== 'undefined' ? PHOTO_MANIFEST_ICELAND : {});
 const PHOTOS_FLORIDA = buildPhotos(typeof PHOTO_MANIFEST_FLORIDA !== 'undefined' ? PHOTO_MANIFEST_FLORIDA : {});
-const PHOTOS_EUROPE = buildPhotos(typeof PHOTO_MANIFEST_EUROPE !== 'undefined' ? PHOTO_MANIFEST_EUROPE : {});
+const PHOTOS_EUROPE_OWN = buildPhotos(typeof PHOTO_MANIFEST_EUROPE !== 'undefined' ? PHOTO_MANIFEST_EUROPE : {});
+// Europe includes Iceland photos (shared species) + any Europe-specific photos
+const PHOTOS_EUROPE = (() => {
+  const merged = { ...PHOTOS_ICELAND };
+  for (const [sci, photos] of Object.entries(PHOTOS_EUROPE_OWN)) {
+    merged[sci] = merged[sci] ? [...merged[sci], ...photos] : photos;
+  }
+  return merged;
+})();
 
 const ORDER_HUE = {
   Anseriformes: 195, Galliformes: 35, Podicipediformes: 155,
