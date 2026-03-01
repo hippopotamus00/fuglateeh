@@ -1317,6 +1317,8 @@ function App() {
   const spDidDrag = React.useRef(false);
   const spMouseDownAt = React.useRef(0);
   const [genusOrderKey, setGenusOrderKey] = useState(0); // bump to re-render after genus reorder
+  const [orderOrderKey, setOrderOrderKey] = useState(0); // bump to re-render after order reorder
+  const [familyOrderKey, setFamilyOrderKey] = useState(0); // bump to re-render after family reorder
   const [editingOrders, setEditingOrders] = useState(false);
   const [ordPicker, setOrdPicker] = useState(null); // { orderKey, orderLabel, photos[] }
   const [ordDragging, setOrdDragging] = useState(null); // { orderKey, startX, startY, origX, origY, curX, curY, boxRect }
@@ -1507,19 +1509,45 @@ function App() {
   // Levels: 0=orders, 1=families, 2=species (with genus groups)
   const isSpeciesLevel = curFam !== null;
 
-  // Tree items for order/family levels
+  // Tree items for order/family levels (apply custom order from localStorage)
   let items = [], minColW = 200;
   if (orderIdx === null) {
-    items = TAXONOMY.map((o, i) => ({
+    let orders = TAXONOMY.map((o, i) => ({ orig: o, origIdx: i }));
+    try {
+      const saved = rGet(region, "orderOrder");
+      if (saved) {
+        const arr = JSON.parse(saved);
+        const byKey = new Map(orders.map(o => [o.orig.order, o]));
+        const sorted = [];
+        arr.forEach(k => { if (byKey.has(k)) { sorted.push(byKey.get(k)); byKey.delete(k); } });
+        byKey.forEach(o => sorted.push(o));
+        orders = sorted;
+      }
+    } catch(e) {}
+    void orderOrderKey; // dependency for re-render
+    items = orders.map(({ orig: o, origIdx }) => ({
       key: o.order, label: o.orderCommon, sub: o.order,
       count: o.families.reduce((s, f) => s + f.species.length, 0),
-      hue: ORDER_HUE[o.order] || 0, idx: i,
+      hue: ORDER_HUE[o.order] || 0, idx: origIdx,
     }));
     minColW = 220;
   } else if (!isSpeciesLevel) {
-    items = curOrder.families.map((f, i) => ({
+    let fams = curOrder.families.map((f, i) => ({ orig: f, origIdx: i }));
+    try {
+      const saved = rGet(region, `familyOrder:${curOrder.order}`);
+      if (saved) {
+        const arr = JSON.parse(saved);
+        const byKey = new Map(fams.map(f => [f.orig.family, f]));
+        const sorted = [];
+        arr.forEach(k => { if (byKey.has(k)) { sorted.push(byKey.get(k)); byKey.delete(k); } });
+        byKey.forEach(f => sorted.push(f));
+        fams = sorted;
+      }
+    } catch(e) {}
+    void familyOrderKey; // dependency for re-render
+    items = fams.map(({ orig: f, origIdx }) => ({
       key: f.family, label: f.familyCommon, sub: f.family,
-      count: f.species.length, hue, idx: i,
+      count: f.species.length, hue, idx: origIdx,
     }));
     minColW = 240;
   }
@@ -1852,6 +1880,46 @@ function App() {
                     display: "flex", alignItems: "center", justifyContent: "center",
                     fontFamily: "sans-serif", lineHeight: 1,
                   }}>↔</div>
+                )}
+                {/* Reorder arrows */}
+                {isEditing && items.length > 1 && (
+                  <div style={{
+                    position: "absolute", bottom: 6, left: "50%", transform: "translateX(-50%)", zIndex: 2,
+                    display: "flex", gap: 2,
+                  }}>
+                    {globalIdx > 0 && <div onClick={e => {
+                      e.stopPropagation();
+                      const order = items.map(it => it.key);
+                      [order[globalIdx - 1], order[globalIdx]] = [order[globalIdx], order[globalIdx - 1]];
+                      if (isOrderLevel) {
+                        rSet(region, "orderOrder", JSON.stringify(order));
+                        setOrderOrderKey(k => k + 1);
+                      } else {
+                        rSet(region, `familyOrder:${curOrder.order}`, JSON.stringify(order));
+                        setFamilyOrderKey(k => k + 1);
+                      }
+                    }} style={{
+                      width: 22, height: 22, borderRadius: 4,
+                      background: "rgba(0,0,0,0.5)", color: "#fff", fontSize: 12,
+                      cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+                    }}>◀</div>}
+                    {globalIdx < items.length - 1 && <div onClick={e => {
+                      e.stopPropagation();
+                      const order = items.map(it => it.key);
+                      [order[globalIdx], order[globalIdx + 1]] = [order[globalIdx + 1], order[globalIdx]];
+                      if (isOrderLevel) {
+                        rSet(region, "orderOrder", JSON.stringify(order));
+                        setOrderOrderKey(k => k + 1);
+                      } else {
+                        rSet(region, `familyOrder:${curOrder.order}`, JSON.stringify(order));
+                        setFamilyOrderKey(k => k + 1);
+                      }
+                    }} style={{
+                      width: 22, height: 22, borderRadius: 4,
+                      background: "rgba(0,0,0,0.5)", color: "#fff", fontSize: 12,
+                      cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+                    }}>▶</div>}
+                  </div>
                 )}
               </button>
               );
