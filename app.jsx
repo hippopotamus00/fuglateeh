@@ -1300,8 +1300,9 @@ function SpeciesPage({ sp, hue, onBack, allPhotos, region }) {
 
 /* ── Main component ─────────────────────────────────────────── */
 function App() {
-  const [region, setRegion] = useState("iceland");
-  const [europeIncludeIceland, setEuropeIncludeIceland] = useState(true);
+  const [continent, setContinent] = useState("europe");
+  const [subRegion, setSubRegion] = useState(null); // null | "iceland" | "florida"
+  const region = subRegion || (continent === "europe" ? "europe" : "florida");
   const [orderIdx, setOrderIdx] = useState(null);
   const [famIdx, setFamIdx] = useState(null);
   const [selectedSp, setSelectedSp] = useState(null);
@@ -1335,19 +1336,9 @@ function App() {
   }, [editingOrders, editingFamilies, editingSpecies]);
 
   const TAXONOMY_EUROPE_RAW = typeof TAXONOMY_EUROPE !== 'undefined' ? TAXONOMY_EUROPE : [];
-  const TAXONOMY = useMemo(() => {
-    if (region === "iceland") return TAXONOMY_ICELAND;
-    if (region === "florida") return TAXONOMY_FLORIDA;
-    // Europe
-    if (europeIncludeIceland) return TAXONOMY_EUROPE_RAW;
-    const icelandSci = new Set();
-    TAXONOMY_ICELAND.forEach(o => o.families.forEach(f => f.species.forEach(s => icelandSci.add(s.sci))));
-    return TAXONOMY_EUROPE_RAW.map(o => ({
-      ...o, families: o.families.map(f => ({
-        ...f, species: f.species.filter(s => !icelandSci.has(s.sci))
-      })).filter(f => f.species.length > 0)
-    })).filter(o => o.families.length > 0);
-  }, [region, europeIncludeIceland]);
+  const TAXONOMY = region === "iceland" ? TAXONOMY_ICELAND
+    : region === "europe" ? TAXONOMY_EUROPE_RAW
+    : TAXONOMY_FLORIDA;
   const PHOTOS = region === "iceland" ? PHOTOS_ICELAND
     : region === "florida" ? PHOTOS_FLORIDA
     : PHOTOS_EUROPE;
@@ -1573,35 +1564,47 @@ function App() {
           fuglateeh
         </h1>
         {orderIdx === null && (<>
+          {/* Continent toggle */}
           <div style={{ display: "flex", justifyContent: "center", gap: 0, margin: "4px 0 2px" }}>
-            {[["iceland", "Ísland"], ["florida", "Flórída"], ["europe", "Evrópa"]].map(([key, label], i, arr) => (
+            {[["europe", "Evrópa"], ["america", "Ameríka"]].map(([key, label], i, arr) => (
               <button key={key} onClick={() => {
-                if (region !== key) {
-                  setRegion(key); setOrderIdx(null); setFamIdx(null); setSelectedSp(null);
+                if (continent !== key) {
+                  setContinent(key); setSubRegion(null);
+                  setOrderIdx(null); setFamIdx(null); setSelectedSp(null);
                   setFilter(null); setEditingOrders(false); setEditingFamilies(false); setEditingSpecies(false);
                   setAnimKey(k => k + 1);
                 }
               }} style={{
                 fontFamily: "'JetBrains Mono',monospace", fontSize: 10.5,
-                padding: "3px 14px", cursor: region === key ? "default" : "pointer",
-                background: region === key ? "#2a2a2a" : "transparent",
-                color: region === key ? "#f5f0e8" : "#b0a89e",
-                border: region === key ? "none" : "1px solid #e0ddd8",
+                padding: "3px 14px", cursor: continent === key ? "default" : "pointer",
+                background: continent === key ? "#2a2a2a" : "transparent",
+                color: continent === key ? "#f5f0e8" : "#b0a89e",
+                border: continent === key ? "none" : "1px solid #e0ddd8",
                 borderRadius: i === 0 ? "10px 0 0 10px" : i === arr.length - 1 ? "0 10px 10px 0" : "0",
                 transition: "all .2s",
               }}>{label}</button>
             ))}
           </div>
-          {region === "europe" && (
-            <label style={{ display: "flex", alignItems: "center", justifyContent: "center",
-              gap: 5, margin: "2px 0 0", cursor: "pointer",
-              fontFamily: "'JetBrains Mono',monospace", fontSize: 9.5, color: "#b0a89e" }}>
-              <input type="checkbox" checked={europeIncludeIceland}
-                onChange={e => { setEuropeIncludeIceland(e.target.checked); setOrderIdx(null); setFamIdx(null); setSelectedSp(null); setAnimKey(k => k + 1); }}
-                style={{ accentColor: "#2a2a2a" }} />
-              Íslenskar tegundir
-            </label>
-          )}
+          {/* Sub-region button */}
+          {(() => {
+            const sub = continent === "europe" ? ["iceland", "Ísland"] : ["florida", "Flórída"];
+            const active = subRegion === sub[0];
+            return (
+              <button onClick={() => {
+                setSubRegion(active ? null : sub[0]);
+                setOrderIdx(null); setFamIdx(null); setSelectedSp(null);
+                setFilter(null); setEditingOrders(false); setEditingFamilies(false); setEditingSpecies(false);
+                setAnimKey(k => k + 1);
+              }} style={{
+                fontFamily: "'JetBrains Mono',monospace", fontSize: 9.5,
+                padding: "2px 12px", borderRadius: 10, cursor: "pointer",
+                background: active ? "#2a2a2a" : "transparent",
+                color: active ? "#f5f0e8" : "#b0a89e",
+                border: active ? "none" : "1px solid #e0ddd8",
+                transition: "all .2s", marginTop: 2,
+              }}>{sub[1]}</button>
+            );
+          })()}
         </>)}
         <span style={{ fontFamily: "'JetBrains Mono',monospace",
           fontSize: 10.5, color: "#b0a89e" }}>{total} species</span>
