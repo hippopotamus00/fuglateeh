@@ -105,7 +105,7 @@ const TAXONOMY_EUROPE = [
       { sci: "Alectoris graeca", en: "Rock Partridge" },
     ]},
   ]},
-  { order: "Columbiformes", orderCommon: "Columbiformes", families: [
+  { order: "Columbiformes", orderCommon: "Dúfur", families: [
     { family: "Columbidae", familyCommon: "Pigeons and Doves", species: [
       { sci: "Columba livia", en: "Rock Pigeon" },
       { sci: "Columba oenas", en: "Stock Dove" },
