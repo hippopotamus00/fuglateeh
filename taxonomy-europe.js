@@ -675,7 +675,7 @@ const TAXONOMY_EUROPE = [
       { sci: "Colaptes auratus", en: "Northern Flicker" },
     ]},
   ]},
-  { order: "Falconiformes", orderCommon: "Falconiformes", families: [
+  { order: "Falconiformes", orderCommon: "Fálkar", families: [
     { family: "Falconidae", familyCommon: "Falcons and Caracaras", species: [
       { sci: "Falco naumanni", en: "Lesser Kestrel" },
       { sci: "Falco tinnunculus", en: "Turnfálki" },
