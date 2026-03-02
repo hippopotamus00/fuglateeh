@@ -39,7 +39,13 @@ for photos_dir_name, var_name, location in REGIONS:
             )
 
             if files:
-                manifest[sci_name] = [{"file": f"{photos_dir_name}/{dirname}/{f}", "location": location} for f in files]
+                # Check for per-folder location override (e.g. _location.txt containing "tenerife")
+                loc_file = os.path.join(dirpath, "_location.txt")
+                folder_loc = location
+                if os.path.isfile(loc_file):
+                    with open(loc_file, encoding="utf-8") as lf:
+                        folder_loc = lf.read().strip()
+                manifest[sci_name] = [{"file": f"{photos_dir_name}/{dirname}/{f}", "location": folder_loc} for f in files]
 
     total_photos = sum(len(v) for v in manifest.values())
     total_species = len(manifest)

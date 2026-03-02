@@ -698,6 +698,7 @@ const TAXONOMY_EUROPE = [
     ]},
     { family: "Psittacidae", familyCommon: "New World and African Parrots", species: [
       { sci: "Myiopsitta monachus", en: "Monk Parakeet" },
+      { sci: "Aratinga nenday", en: "Nanday Parakeet" },
     ]},
   ]},
   { order: "Passeriformes", orderCommon: "Passeriformes", families: [
