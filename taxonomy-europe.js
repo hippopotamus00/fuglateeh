@@ -696,7 +696,7 @@ const TAXONOMY_EUROPE = [
     { family: "Psittaculidae", familyCommon: "Gamlaheimspáfar", species: [
       { sci: "Psittacula krameri", en: "Rose-ringed Parakeet" },
     ]},
-    { family: "Psittacidae", familyCommon: "New World and African Parrots", species: [
+    { family: "Psittacidae", familyCommon: "Hitabeltispáfar", species: [
       { sci: "Myiopsitta monachus", en: "Monk Parakeet" },
       { sci: "Aratinga nenday", en: "Hettupáfi" },
     ]},
