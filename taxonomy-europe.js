@@ -678,7 +678,7 @@ const TAXONOMY_EUROPE = [
   { order: "Falconiformes", orderCommon: "Falconiformes", families: [
     { family: "Falconidae", familyCommon: "Falcons and Caracaras", species: [
       { sci: "Falco naumanni", en: "Lesser Kestrel" },
-      { sci: "Falco tinnunculus", en: "Eurasian Kestrel" },
+      { sci: "Falco tinnunculus", en: "Turnfálki" },
       { sci: "Falco sparverius", en: "American Kestrel" },
       { sci: "Falco vespertinus", en: "Red-footed Falcon" },
       { sci: "Falco amurensis", en: "Amur Falcon" },
