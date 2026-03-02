@@ -676,7 +676,7 @@ const TAXONOMY_EUROPE = [
     ]},
   ]},
   { order: "Falconiformes", orderCommon: "Fálkar", families: [
-    { family: "Falconidae", familyCommon: "Falcons and Caracaras", species: [
+    { family: "Falconidae", familyCommon: "Fálkar", species: [
       { sci: "Falco naumanni", en: "Lesser Kestrel" },
       { sci: "Falco tinnunculus", en: "Turnfálki" },
       { sci: "Falco sparverius", en: "American Kestrel" },
