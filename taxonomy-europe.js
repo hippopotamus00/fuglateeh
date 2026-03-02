@@ -106,7 +106,7 @@ const TAXONOMY_EUROPE = [
     ]},
   ]},
   { order: "Columbiformes", orderCommon: "Dúfur", families: [
-    { family: "Columbidae", familyCommon: "Pigeons and Doves", species: [
+    { family: "Columbidae", familyCommon: "Dúfur", species: [
       { sci: "Columba livia", en: "Rock Pigeon" },
       { sci: "Columba oenas", en: "Stock Dove" },
       { sci: "Columba palumbus", en: "Common Wood-Pigeon" },
