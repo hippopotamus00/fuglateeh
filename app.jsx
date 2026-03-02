@@ -633,13 +633,10 @@ function SpeciesPage({ sp, hue, onBack, allPhotos, region }) {
   }, [storageKey, region]);
 
   const saveTimerRef = React.useRef(null);
-  const saveConfig = useCallback(async (newConfig) => {
+  const saveConfig = useCallback((newConfig) => {
     setConfig(newConfig);
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(async () => {
-      try { rSet(region, storageKey, JSON.stringify(newConfig)); }
-      catch (e) {}
-    }, 300);
+    try { rSet(region, storageKey, JSON.stringify(newConfig)); }
+    catch (e) {}
   }, [storageKey, region]);
 
   const mood = MOODS.find(m => m.key === (config?.mood || "light")) || MOODS[0];
