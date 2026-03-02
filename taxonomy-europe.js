@@ -692,13 +692,13 @@ const TAXONOMY_EUROPE = [
       { sci: "Falco peregrinus", en: "Peregrine Falcon" },
     ]},
   ]},
-  { order: "Psittaciformes", orderCommon: "Psittaciformes", families: [
-    { family: "Psittaculidae", familyCommon: "Old World Parrots", species: [
+  { order: "Psittaciformes", orderCommon: "Páfagaukar", families: [
+    { family: "Psittaculidae", familyCommon: "Gamlaheimspáfar", species: [
       { sci: "Psittacula krameri", en: "Rose-ringed Parakeet" },
     ]},
     { family: "Psittacidae", familyCommon: "New World and African Parrots", species: [
       { sci: "Myiopsitta monachus", en: "Monk Parakeet" },
-      { sci: "Aratinga nenday", en: "Nanday Parakeet" },
+      { sci: "Aratinga nenday", en: "Hettupáfi" },
     ]},
   ]},
   { order: "Passeriformes", orderCommon: "Passeriformes", families: [
